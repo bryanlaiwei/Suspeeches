@@ -30,6 +30,11 @@ const session = () => (typeof window === "undefined" ? undefined : window.sessio
 export const loadProfile = () => read<Profile>(local(), PROFILE_KEY);
 export const saveProfile = (p: Profile) => write(local(), PROFILE_KEY, p);
 
+/** What a gap estimate was made for: the real profile plus the cover story. */
+export function gapKeyFor(p: Profile, alias: string, claims: string[]): string {
+  return JSON.stringify([p.name, p.role, p.skills, p.yearsExperience, p.education, p.facts, alias.trim(), claims]);
+}
+
 export type SetupDraft = Partial<Setup> & { gap?: GapResult | null; gapFor?: string };
 export const loadSetupDraft = () => read<SetupDraft>(local(), SETUP_KEY);
 export const saveSetupDraft = (d: SetupDraft) => write(local(), SETUP_KEY, d);

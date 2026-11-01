@@ -7,7 +7,9 @@ import { RequireAuth, SignOutButton } from "@/components/Auth";
 import { Avatar } from "@/components/Avatar";
 import { GameHistory } from "@/components/GameHistory";
 import { Button, Card, FictionNote, Input, Label, Shell, Textarea } from "@/components/ui";
+import { api } from "@/lib/client/api";
 import { fetchProfile, storeProfile } from "@/lib/client/profileStore";
+import { gapKeyFor, loadSetupDraft, saveSetupDraft } from "@/lib/client/storage";
 import { authEnabled } from "@/lib/client/supabase";
 import { PRESETS } from "@/lib/presets";
 import { ProfileSchema } from "@/lib/schemas";
@@ -38,6 +40,7 @@ function ProfileForm() {
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [demoSus, setDemoSus] = useState(20);
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     void fetchProfile().then((p) => {
@@ -77,10 +80,19 @@ function ProfileForm() {
       setError(parsed.error.issues[0]?.message ?? "Check the form");
       return;
     }
+    setBusy(true);
     try {
       await storeProfile(parsed.data);
+      // Saving the profile re-measures the larp gap for your saved cover story.
+      const d = loadSetupDraft();
+      if (d?.claims?.length) {
+        const alias = d.alias || parsed.data.name;
+        const { gap } = await api.gap(parsed.data, alias, d.claims);
+        saveSetupDraft({ ...d, gap, gapFor: gapKeyFor(parsed.data, alias, d.claims) });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
+      setBusy(false);
       return;
     }
     router.push("/setup");
@@ -157,7 +169,9 @@ function ProfileForm() {
             {error && <p className="text-sm text-sus sm:col-span-2">{error}</p>}
             <div className="flex items-center justify-between gap-3 sm:col-span-2">
               <span className="text-xs text-muted">{saved ? "Saved to your account" : ""}</span>
-              <Button type="submit">{saved ? "Save and play →" : "Save profile and play →"}</Button>
+              <Button type="submit" disabled={busy}>
+                {busy ? "Saving…" : saved ? "Save and play →" : "Save profile and play →"}
+              </Button>
             </div>
           </form>
           <FictionNote className="mt-5" />

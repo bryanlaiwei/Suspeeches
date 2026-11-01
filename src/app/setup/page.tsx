@@ -5,10 +5,10 @@ import { useRouter } from "next/navigation";
 import { RequireAuth, useAuth } from "@/components/Auth";
 import { useEffect, useMemo, useState } from "react";
 import { Avatar } from "@/components/Avatar";
-import { Button, Card, cx, FictionNote, Input, Label, Shell, Textarea } from "@/components/ui";
+import { Btn, Button, Card, cx, FictionNote, Input, Label, Shell, Textarea } from "@/components/ui";
 import { api } from "@/lib/client/api";
 import { fetchProfile } from "@/lib/client/profileStore";
-import { loadSetupDraft, saveSetupDraft } from "@/lib/client/storage";
+import { gapKeyFor, loadSetupDraft, saveSetupDraft, type SetupDraft } from "@/lib/client/storage";
 import { castFor, CUSTOM_PRESET, GROUP_PRESET, PARTY_CAST, PARTY_PRESET, PRESETS, presetFor, VOICES } from "@/lib/presets";
 import { ScenarioIdSchema, SetupSchema, type GapResult, type Profile, type ScenarioId } from "@/lib/schemas";
 
@@ -45,6 +45,8 @@ function SetupPageInner() {
   const [gap, setGap] = useState<GapResult | null>(null);
   const [gapFor, setGapFor] = useState("");
   const [gapLoading, setGapLoading] = useState(false);
+  /** Cover story (alias + claims) as last saved, to show unsaved changes. */
+  const [savedCover, setSavedCover] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
 
@@ -67,6 +69,7 @@ function SetupPageInner() {
         setGap(d.gap);
         setGapFor(d.gapFor);
       }
+      if (d?.claims?.length) setSavedCover(coverKeyFor(d.alias || p.name, d.claims));
     });
   }, [router]);
 
@@ -79,8 +82,10 @@ function SetupPageInner() {
       : scenarioId === "group"
         ? group.characters.map((c) => c.name).filter(Boolean).join(", ") || "your group"
         : preset.character;
-  const gapKey = useMemo(() => JSON.stringify([alias.trim(), claims]), [alias, claims]);
+  const gapKey = useMemo(() => (profile ? gapKeyFor(profile, alias, claims) : ""), [profile, alias, claims]);
   const gapFresh = gap && gapFor === gapKey;
+  const coverKey = coverKeyFor(alias, claims);
+  const coverSaved = !!claims.length && savedCover === coverKey;
 
   function pickScenario(id: ScenarioId) {
     const next = presetFor(id);
@@ -111,14 +116,14 @@ function SetupPageInner() {
     }
   }
 
-  async function estimate(): Promise<GapResult | null> {
-    if (!profile || !claims.length) return null;
+  async function estimate(p: Profile, a: string, c: string[]): Promise<GapResult | null> {
+    if (!c.length) return null;
     setGapLoading(true);
     setError(null);
     try {
-      const { gap } = await api.gap(profile, alias, claims);
+      const { gap } = await api.gap(p, a, c);
       setGap(gap);
-      setGapFor(gapKey);
+      setGapFor(gapKeyFor(p, a, c));
       return gap;
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -126,6 +131,28 @@ function SetupPageInner() {
     } finally {
       setGapLoading(false);
     }
+  }
+
+  function draft(): SetupDraft {
+    return {
+      scenarioId,
+      custom: scenarioId === "custom" ? custom : undefined,
+      group: scenarioId === "group" ? group : undefined,
+      alias,
+      claims,
+      goal,
+      timeLimitSec,
+      emailHandler: true,
+    };
+  }
+
+  /** Saves the setup for next time and re-estimates the gap (the only place it's estimated here). */
+  async function saveCover() {
+    if (!profile || !claims.length) return;
+    saveSetupDraft({ ...draft(), gap, gapFor });
+    setSavedCover(coverKey);
+    const g = await estimate(profile, alias, claims);
+    if (g) saveSetupDraft({ ...draft(), gap: g, gapFor: gapKey });
   }
 
   async function start() {
@@ -155,13 +182,12 @@ function SetupPageInner() {
       );
       return;
     }
-    setStarting(true);
-    const g = gapFresh ? gap : await estimate();
-    if (!g) {
-      setStarting(false);
+    if (!gapFresh || !gap) {
+      setError("Save your cover story first so we can measure the larp gap.");
       return;
     }
-    saveSetupDraft({ ...parsed.data, gap: g, gapFor: gapKey });
+    setStarting(true);
+    saveSetupDraft({ ...parsed.data, gap, gapFor: gapKey });
     router.push("/scene");
   }
 
@@ -319,6 +345,22 @@ function SetupPageInner() {
                 </div>
               )}
             </div>
+            <div className="mt-5 flex items-center justify-between gap-3 border-t-2 border-lav-2 pt-4">
+              {coverSaved && gapFresh ? (
+                <span className="flex items-center gap-2 text-sm font-extrabold text-green">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-green text-xs text-white">✓</span>
+                  Cover story saved
+                </span>
+              ) : (
+                <span className="flex items-center gap-2 text-sm font-bold text-muted">
+                  <span className={cx("h-2.5 w-2.5 rounded-full", claims.length ? "animate-pulse bg-yellow" : "bg-lav-2")} />
+                  {!claims.length ? "Add a claim to save your cover" : coverSaved ? "Save to update the larp gap" : "Unsaved changes"}
+                </span>
+              )}
+              <Btn type="button" size="sm" tone={coverSaved && gapFresh ? "white" : "green"} onClick={saveCover} disabled={(coverSaved && !!gapFresh) || !claims.length || gapLoading}>
+                {gapLoading ? "Saving…" : coverSaved && gapFresh ? "Saved" : "💾 Save cover story"}
+              </Btn>
+            </div>
           </Card>
 
           <Card>
@@ -355,9 +397,11 @@ function SetupPageInner() {
           <Card>
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-lg font-bold">Larp gap</h2>
-              <Button type="button" variant="ghost" onClick={estimate} disabled={!claims.length || gapLoading}>
-                {gapLoading ? "Measuring…" : gapFresh ? "Re-estimate" : "Estimate"}
-              </Button>
+              {gapLoading && (
+                <span className="animate-pulse rounded-full bg-blue-soft px-3 py-1 text-xs font-black uppercase tracking-widest text-blue">
+                  Measuring…
+                </span>
+              )}
             </div>
             {gap ? (
               <div className={cx(!gapFresh && "opacity-50")}>
@@ -375,24 +419,33 @@ function SetupPageInner() {
                   />
                 </div>
                 <p className="text-sm text-ink/80">{gap.rationale}</p>
-                {!gapFresh && <p className="mt-2 text-xs text-warn">Claims changed. Re-estimate before you start.</p>}
+                {!gapFresh && !gapLoading && (
+                  <p className="mt-2 text-xs font-bold text-warn">Something changed. Save your cover story to update the gap.</p>
+                )}
               </div>
             ) : (
               <p className="text-sm text-muted">
-                How far your cover is from the real you. Bigger gap, harder scene, bigger score multiplier.
+                How far your cover is from the real you. Bigger gap, harder scene, bigger score multiplier. Save your
+                cover story to measure it.
               </p>
             )}
           </Card>
           <FictionNote />
           {error && <p className="rounded-xl border border-sus/40 bg-sus/10 px-4 py-3 text-sm text-sus">{error}</p>}
-          <Button type="button" className="w-full py-4 text-base" onClick={start} disabled={starting || !claims.length}>
-            {starting ? "Preparing the scene…" : `Enter the scene with ${audience} →`}
+          <Button type="button" className="w-full py-4 text-base" onClick={start} disabled={starting || !claims.length || !gapFresh || gapLoading}>
+            {starting
+              ? "Preparing the scene…"
+              : gapFresh
+                ? `Enter the scene with ${audience} →`
+                : "Save your cover story first"}
           </Button>
         </div>
       </div>
     </Shell>
   );
 }
+
+const coverKeyFor = (alias: string, claims: string[]) => JSON.stringify([alias.trim(), claims]);
 
 const ALL_SCENES = [...PRESETS, PARTY_PRESET, CUSTOM_PRESET, GROUP_PRESET];
 
