@@ -104,7 +104,7 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
         // eslint-disable-next-line react-hooks/purity -- SDK event callback, not render
         agentStoppedAt.current = performance.now();
         userSpeechStart.current = null;
-        // The NPC finished its goodbye line: hang up if it didn't end the call itself.
+        // The NPC finished its goodbye line: the app hangs up (NPCs can't end calls).
         if (bustedRef.current?.agentSpoke) setTimeout(() => void finish("caught"), 1200);
       }
     },
@@ -241,7 +241,7 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
 
   /**
    * Suspicion hit 100. The NPC gets a "you've decided, end it" note, says a cold goodbye and hangs up
-   * (end_call). If it doesn't within 15 s, we hang up for it.
+   * after their goodbye line; if no goodbye arrives within 15 s we hang up anyway.
    */
   function bust(note: string | null | undefined) {
     if (bustedRef.current || endingRef.current) return;

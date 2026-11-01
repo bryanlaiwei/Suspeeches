@@ -6,7 +6,7 @@
  *   npm run agents:update                                   # push prompt/voice changes to the agents in .env.local
  *
  * Each agent gets: character sheet + shared rules as its system prompt (with {{dynamic variables}}
- * for the cover story), its own voice and LLM, the end_call system tool, the client events the app
+ * for the cover story), its own voice and LLM, no hang-up tool (the app ends scenes), the client events the app
  * listens to, and (custom agent only) the tts.voice_id override so players can pick a voice.
  * Endpoints: POST /v1/convai/agents/create, PATCH /v1/convai/agents/{agent_id} (update).
  */
@@ -63,16 +63,8 @@ function agentBody(scenario: (typeof SCENARIOS)[number]) {
           prompt,
           llm: sheet.meta.llm,
           temperature: 0.7,
-          built_in_tools: {
-            end_call: {
-              type: "system",
-              name: "end_call",
-              // Without this the LLM sometimes hangs up mid-conversation.
-              description:
-                "Hang up the call. ONLY use this right after you have said an explicit goodbye in your previous message, and only for one of these reasons: you granted the player's goal, the player said they want to leave, or you received a decision note telling you to end the conversation. NEVER use it in the middle of a conversation, never in the same turn as a question, and never just because a topic is finished. If unsure, do not call it and keep talking.",
-              params: { system_tool_type: "end_call" },
-            },
-          },
+          // No end_call tool: only the app ends a scene (timer, caught, or the player leaving).
+          built_in_tools: { end_call: null },
         },
         dynamic_variables: { dynamic_variable_placeholders: used },
       },

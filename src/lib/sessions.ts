@@ -264,7 +264,7 @@ function caught(s: Session, tSec: number) {
   finish(s, "caught", tSec);
 }
 
-/** Note for the NPC after a suspicion change: "end the call" when caught, a new mood, or nothing. */
+/** Note for the NPC after a suspicion change: "say goodbye" when caught, a new mood, or nothing. */
 function npcNote(s: Session): string | null {
   if (s.status === "caught") return (s.caughtBy ? groupMoodNote({ caughtBy: s.caughtBy }) : moodNote("caught")) || null;
   return moodChange(s);
