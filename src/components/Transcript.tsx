@@ -22,69 +22,59 @@ export function Transcript({
   lines,
   npcName,
   onSelectTurn,
-  highlightUntil,
   className = "",
 }: {
   lines: LiveLine[];
   npcName: string;
   onSelectTurn?: (turnIndex: number) => void;
-  /** Replay mode: lines after this time are dimmed. */
-  highlightUntil?: number;
   className?: string;
 }) {
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => {
     // Scroll only this box (scrollIntoView would also scroll the page).
     const el = box.current;
-    if (el && highlightUntil === undefined) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
-  }, [lines.length, highlightUntil]);
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+  }, [lines.length]);
 
   return (
-    <div ref={box} className={cx("min-h-0 space-y-3 overflow-y-auto pr-1", className)}>
-      {lines.length === 0 && <p className="text-sm text-muted">The transcript appears here as you talk.</p>}
+    <div ref={box} className={cx("min-h-0 space-y-2 overflow-y-auto pr-1", className)}>
+      {lines.length === 0 && <p className="text-sm font-bold text-muted">The transcript appears here as you talk.</p>}
       {lines.map((l) => {
-        const future = highlightUntil !== undefined && l.tSec > highlightUntil;
         if (l.role === "system") {
           return (
             <button
               key={l.id}
               type="button"
               onClick={() => l.turnIndex !== undefined && onSelectTurn?.(l.turnIndex)}
-              className={cx(
-                "mx-auto block rounded-full border border-warn/40 bg-warn/10 px-3 py-1 font-mono text-[11px] text-warn transition-opacity",
-                future && "opacity-25",
-              )}
+              className="mx-auto block rounded-full bg-[#fff1c2] px-3 py-1 text-xs font-extrabold text-[#8a5a00] hover:brightness-95"
             >
               {fmtTime(l.tSec)} · {l.text}
             </button>
           );
         }
+        const you = l.role === "user";
         return (
-          <div
-            key={l.id}
-            className={cx("flex flex-col transition-opacity", l.role === "user" ? "items-end" : "items-start", future && "opacity-25")}
-          >
-            <span className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted">
-              {l.role === "user" ? "You" : (l.speaker ?? npcName)} · {fmtTime(l.tSec)}
-            </span>
+          <div key={l.id} className={cx("flex flex-col", you ? "items-end" : "items-start")}>
             <div
               className={cx(
-                "max-w-[90%] rounded-2xl px-3.5 py-2 text-sm leading-relaxed",
-                l.role === "user" ? "rounded-br-sm bg-brand/20 text-ink" : "rounded-bl-sm bg-panel-2 text-ink/90",
+                "max-w-[88%] rounded-2xl px-3.5 py-2 text-sm font-bold leading-snug text-ink",
+                you ? "bg-green-soft" : "bg-lav",
               )}
+              title={fmtTime(l.tSec)}
             >
+              {!you && <span className="font-black text-purple">{l.speaker ?? npcName}: </span>}
               {l.text}
             </div>
-            {l.role === "user" && l.delta !== undefined && (
+            {you && l.delta !== undefined && (
               <button
                 type="button"
                 disabled={l.delta === null || l.turnIndex === undefined}
                 onClick={() => l.turnIndex !== undefined && onSelectTurn?.(l.turnIndex)}
                 className={cx(
-                  "mt-1 rounded-full px-2 py-0.5 font-mono text-[11px] font-bold",
+                  "mt-1 rounded-full px-2.5 py-0.5 text-xs font-extrabold",
                   l.delta === null && "animate-pulse text-muted",
-                  typeof l.delta === "number" && l.delta > 0 && "bg-sus/15 text-sus hover:bg-sus/25",
-                  typeof l.delta === "number" && l.delta <= 0 && "bg-clean/15 text-clean hover:bg-clean/25",
+                  typeof l.delta === "number" && l.delta > 0 && "bg-[#ffd6d6] text-[#a32d2d] hover:brightness-95",
+                  typeof l.delta === "number" && l.delta <= 0 && "bg-green-soft text-[#2f6b00] hover:brightness-95",
                 )}
               >
                 {l.delta === null
