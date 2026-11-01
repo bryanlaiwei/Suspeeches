@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { characterName } from "./context";
+import { startDebrief } from "./debrief";
 import { judgeTurn, npcHintFor } from "./judge";
 import type { GapResult, Profile, Setup, Timing } from "./schemas";
 import { moodNote } from "./mood";
@@ -45,6 +46,8 @@ export interface Session {
   debrief: Debrief | null;
   debriefPromise: Promise<Debrief> | null;
   handler: PublicSessionState["handler"];
+  /** Public origin of the app, for links in emails. */
+  appUrl: string;
   /** Serializes judge calls so suspicion updates apply in turn order. */
   queue: Promise<unknown>;
   /** Tone the NPC was last told to use. */
@@ -59,7 +62,7 @@ const g = globalThis as unknown as { __susSessions?: Map<string, Session> };
 const sessions: Map<string, Session> = (g.__susSessions ??= new Map());
 const TTL_MS = 6 * 60 * 60 * 1000;
 
-export function createSession(profile: Profile, setup: Setup, gap: GapResult): Session {
+export function createSession(profile: Profile, setup: Setup, gap: GapResult, appUrl: string): Session {
   const now = Date.now();
   for (const [id, s] of sessions) if (now - s.createdAt > TTL_MS) sessions.delete(id);
 
@@ -80,6 +83,7 @@ export function createSession(profile: Profile, setup: Setup, gap: GapResult): S
     debrief: null,
     debriefPromise: null,
     handler: { enabled: false, address: null, briefSent: false, debriefSent: false, error: null },
+    appUrl,
     queue: Promise.resolve(),
     mood: moodFor(START_SUSPICION),
     silence: null,
@@ -222,6 +226,8 @@ function finish(s: Session, reason: EndReason, tSec: number) {
   if (reason === "caught") s.status = "caught";
   else if (reason === "left" || reason === "error") s.status = "left";
   else s.status = "survived";
+  // Write (and email) the debrief right away; the debrief page just waits on the same promise.
+  startDebrief(s).catch((err) => console.error("[debrief]", err instanceof Error ? err.message : err));
 }
 
 export function toPublic(s: Session): PublicSessionState {

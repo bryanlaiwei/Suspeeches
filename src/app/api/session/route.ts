@@ -1,7 +1,7 @@
 import { VoiceConfigError, voiceConnectionFor } from "@/lib/elevenlabs";
 import { estimateGap } from "@/lib/gap";
 import { runHandler } from "@/lib/handler";
-import { errorResponse, parseBody } from "@/lib/http";
+import { appUrl, errorResponse, parseBody } from "@/lib/http";
 import { CreateSessionBodySchema } from "@/lib/schemas";
 import { createSession, toPublic } from "@/lib/sessions";
 import type { CreateSessionResponse } from "@/lib/types";
@@ -20,7 +20,7 @@ export async function POST(req: Request) {
       body.data.gap ?? estimateGap(profile, setup.alias, setup.claims),
       voiceConnectionFor(setup),
     ]);
-    const session = createSession(profile, setup, gap);
+    const session = createSession(profile, setup, gap, appUrl(req));
     runHandler(session, (h) => h.sendBrief(session));
     const res: CreateSessionResponse = { state: toPublic(session), voice };
     return Response.json(res);
