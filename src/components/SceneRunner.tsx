@@ -9,7 +9,7 @@ import { playCaught, playRelief, playSpike, playSurvived, unlockAudio } from "@/
 import type { SetupDraft } from "@/lib/client/storage";
 import { CUSTOM_PRESET, presetFor } from "@/lib/presets";
 import { SetupSchema, type Profile, type Setup } from "@/lib/schemas";
-import { moodFor, SILENCE_FIRST_SEC, SILENCE_REPEAT_SEC, SPIKE_DELTA } from "@/lib/scoring";
+import { moodFor, SILENCE_FIRST_SEC, SILENCE_REPEAT_SEC, SPIKE_DELTA, START_SUSPICION } from "@/lib/scoring";
 import type { ClaimState, EndReason, PublicSessionState, SuspicionEvent, VoiceConnection } from "@/lib/types";
 import { Avatar, type AvatarPalette } from "./Avatar";
 import { EventDetail, SuspicionBar } from "./SuspicionBar";
@@ -41,8 +41,9 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
   const [userTalking, setUserTalking] = useState(false);
   const [hasSession, setHasSession] = useState(false);
   const [silentFor, setSilentFor] = useState(0);
+  const [busted, setBusted] = useState(false);
 
-  const suspicion = useAnimatedNumber(state?.suspicion ?? 15, 5);
+  const suspicion = useAnimatedNumber(state?.suspicion ?? START_SUSPICION, 5);
 
   // Mutable engine state lives in refs so SDK callbacks never see stale values.
   const sessionId = useRef<string | null>(null);
@@ -50,6 +51,8 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
   const agentStoppedAt = useRef<number | null>(null);
   const userSpeechStart = useRef<number | null>(null);
   const endingRef = useRef(false);
+  /** Caught: the NPC is delivering its goodbye before hanging up. */
+  const bustedRef = useRef<{ agentSpoke: boolean; fallback: ReturnType<typeof setTimeout> } | null>(null);
   const lineId = useRef(0);
   const voiceRef = useRef<VoiceConnection | null>(null);
   const mock = useRef({ level: 0, speaking: false, lineIdx: 0 });
@@ -63,7 +66,8 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
     onConnect: () => beginLive(),
     onDisconnect: (details) => {
       if (endingRef.current) return;
-      if (details.reason === "agent") void finish("npc_ended");
+      if (bustedRef.current) void finish("caught");
+      else if (details.reason === "agent") void finish("npc_ended");
       else if (details.reason === "error") {
         setError(`Voice connection dropped: ${details.message}`);
         void finish("error");
@@ -78,8 +82,11 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
     onModeChange: ({ mode }) => {
       npcSpeaking.current = mode === "speaking";
       if (mode === "listening") {
+        // eslint-disable-next-line react-hooks/purity -- SDK event callback, not render
         agentStoppedAt.current = performance.now();
         userSpeechStart.current = null;
+        // The NPC finished its goodbye line: hang up if it didn't end the call itself.
+        if (bustedRef.current?.agentSpoke) setTimeout(() => void finish("caught"), 1200);
       }
     },
     onVadScore: ({ vadScore }) => {
@@ -109,6 +116,7 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
     if (!sessionId.current || endingRef.current) return;
     const tSec = elapsed();
     pushLine({ role: "agent", text, tSec });
+    if (bustedRef.current) bustedRef.current.agentSpoke = true;
     void api.event(sessionId.current, "agent", text, { responseLatencyMs: null, speechMs: null, tSec }).catch(() => {});
   }
 
@@ -134,10 +142,7 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
         if (!judged) return;
         setLines((ls) => ls.map((l) => (l.id === id ? { ...l, delta: judged.event.delta, turnIndex: judged.event.turnIndex } : l)));
         react(judged.event);
-        if (res.state.status === "caught") {
-          void finish("caught");
-          return;
-        }
+        if (res.state.status === "caught") return bust(res.npcMood);
         tellNpc(res.npcMood);
         tellNpc(judged.npcHint);
       })
@@ -149,6 +154,19 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
     if (voiceRef.current?.mode === "mock") mockReply();
   }
 
+  /**
+   * Suspicion hit 100. The NPC gets a "you've decided, end it" note, says a cold goodbye and hangs up
+   * (end_call). If it doesn't within 15 s, we hang up for it.
+   */
+  function bust(note: string | null | undefined) {
+    if (bustedRef.current || endingRef.current) return;
+    if (voiceRef.current?.mode !== "elevenlabs" || !note) return void finish("caught");
+    playCaught();
+    setBusted(true);
+    bustedRef.current = { agentSpoke: false, fallback: setTimeout(() => void finish("caught"), 15_000) };
+    conversation.sendContextualUpdate(note);
+  }
+
   /** Contextual update to the NPC (mood or next-question hint). Never triggers a reply. */
   function tellNpc(text: string | null | undefined) {
     if (text && voiceRef.current?.mode === "elevenlabs" && !endingRef.current) conversation.sendContextualUpdate(text);
@@ -156,6 +174,7 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
 
   /** Called every tick: penalise silence on the player's turn (the server has the final say). */
   function checkSilence() {
+    if (bustedRef.current) return setSilentFor(0);
     const stopped = agentStoppedAt.current;
     const speaking = voiceRef.current?.mode === "mock" ? mock.current.speaking : npcSpeaking.current;
     if (stopped === null || speaking || userSpeechStart.current !== null || !startedAt.current) {
@@ -177,7 +196,7 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
         setState(res.state);
         pushLine({ role: "system", text: `${res.event.quote} +${res.event.delta}`, tSec: res.event.tSec, turnIndex: res.event.turnIndex });
         react(res.event);
-        if (res.state.status === "caught") return void finish("caught");
+        if (res.state.status === "caught") return bust(res.npcMood);
         tellNpc(res.npcMood);
       })
       .catch((e) => console.error("silence report failed", e));
@@ -201,6 +220,7 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
   async function finish(reason: EndReason) {
     if (endingRef.current) return;
     endingRef.current = true;
+    if (bustedRef.current) clearTimeout(bustedRef.current.fallback);
     setEnding(reason);
     setPhase("ended");
     const tSec = elapsed();
@@ -213,7 +233,7 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
     } else {
       window.speechSynthesis?.cancel();
     }
-    if (reason === "caught") playCaught();
+    if (reason === "caught" && !bustedRef.current) playCaught();
     else if (reason !== "error") playSurvived();
 
     if (reason !== "caught" && sessionId.current) {
@@ -350,8 +370,8 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
 
   const selectedEvent = state?.events.find((e) => e.turnIndex === selected) ?? null;
   const npcTalking = voice?.mode === "elevenlabs" ? conversation.isSpeaking : false;
-  const mood = moodFor(state?.suspicion ?? 15);
-  const silenceWarning = phase === "live" && silentFor >= SILENCE_FIRST_SEC - 3;
+  const mood = moodFor(state?.suspicion ?? START_SUSPICION);
+  const silenceWarning = phase === "live" && !busted && silentFor >= SILENCE_FIRST_SEC - 3;
   const claims: ClaimState[] = state?.claims ?? setup.claims.map((claim) => ({ claim, status: "untested" }));
 
   if (phase === "briefing" || (phase === "error" && !hasSession)) {
@@ -415,6 +435,7 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
 
           <div className="mt-5 flex items-center gap-3">
             {phase === "connecting" && <StatusPill tone="muted">Connecting to {npcName}…</StatusPill>}
+            {busted && phase === "live" && <StatusPill tone="sus">Busted. {npcName} is ending the call…</StatusPill>}
             {silenceWarning && (
               <StatusPill tone="warn">
                 {npcName} is waiting… {Math.max(0, Math.ceil(nextSilenceAt(silentFor) - silentFor))}s
@@ -422,7 +443,7 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
             )}
             {phase === "live" && voice?.mode === "elevenlabs" && (
               <>
-                {!silenceWarning && (
+                {!silenceWarning && !busted && (
                   <StatusPill tone={npcTalking ? "brand" : userTalking ? "clean" : "muted"}>
                     {npcTalking ? `${npcName} is talking` : userTalking ? "You're talking" : "Your turn. Speak up."}
                   </StatusPill>
@@ -477,7 +498,7 @@ function Briefing({
 }) {
   return (
     <div className="mx-auto grid w-full max-w-4xl items-center gap-8 pt-6 md:grid-cols-[1fr_1.2fr]">
-      <Avatar palette={preset} suspicion={15} getLevel={() => 0} className="mx-auto w-64" />
+      <Avatar palette={preset} suspicion={START_SUSPICION} getLevel={() => 0} className="mx-auto w-64" />
       <Card>
         <p className="text-xs font-bold tracking-[0.25em] text-sus">BRIEFING</p>
         <h1 className="mt-1 text-3xl font-black">You&apos;re about to meet {npcName}.</h1>
@@ -560,7 +581,7 @@ function nextSilenceAt(quiet: number): number {
   return SILENCE_FIRST_SEC + Math.ceil((quiet - SILENCE_FIRST_SEC + 0.001) / SILENCE_REPEAT_SEC) * SILENCE_REPEAT_SEC;
 }
 
-function StatusPill({ children, tone }: { children: React.ReactNode; tone: "brand" | "clean" | "muted" | "warn" }) {
+function StatusPill({ children, tone }: { children: React.ReactNode; tone: "brand" | "clean" | "muted" | "warn" | "sus" }) {
   return (
     <span
       className={cx(
@@ -569,6 +590,7 @@ function StatusPill({ children, tone }: { children: React.ReactNode; tone: "bran
         tone === "clean" && "border-clean/50 bg-clean/10",
         tone === "muted" && "border-line text-muted",
         tone === "warn" && "animate-pulse border-warn/60 bg-warn/15 text-warn",
+        tone === "sus" && "animate-pulse border-sus/60 bg-sus/15 text-sus",
       )}
     >
       <span
@@ -578,6 +600,7 @@ function StatusPill({ children, tone }: { children: React.ReactNode; tone: "bran
           tone === "clean" && "animate-pulse bg-clean",
           tone === "muted" && "bg-muted",
           tone === "warn" && "bg-warn",
+          tone === "sus" && "bg-sus",
         )}
       />
       {children}

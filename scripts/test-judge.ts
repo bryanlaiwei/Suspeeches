@@ -13,7 +13,7 @@ import path from "node:path";
 import { judgeTurn } from "../src/lib/judge";
 import { structuredCall, type RawCaller } from "../src/lib/llm";
 import { JudgeRawSchema, JudgeResultSchema, ProfileSchema, SetupSchema } from "../src/lib/schemas";
-import { applyDelta, clampDelta, normalizeJudge, START_SUSPICION } from "../src/lib/scoring";
+import { appliedDelta, applyDelta, clampDelta, normalizeJudge, START_SUSPICION } from "../src/lib/scoring";
 import { deliverySignals } from "../src/lib/timing";
 import type { ClaimState, Turn } from "../src/lib/types";
 
@@ -53,6 +53,14 @@ async function unitChecks() {
     assert.equal(r.delta, 25);
     assert.deepEqual(r.categories, { consistency: 10, specificity: 0, plausibility: 4, delivery: 5 });
     assert.equal(r.claims_status.length, setup.claims.length);
+  });
+  await check("difficulty: doubt scales with gap + streak, trust is damped, bounds hold", () => {
+    assert.equal(appliedDelta(10, 0, 0), 10);
+    assert.equal(appliedDelta(10, 60, 0), 16);
+    assert.equal(appliedDelta(10, 60, 2), 22);
+    assert.equal(appliedDelta(25, 100, 3), 35);
+    assert.equal(appliedDelta(-10, 60, 0), -7);
+    assert.equal(appliedDelta(-15, 0, 0), -10);
   });
   await check("suspicion never leaves [0, 100]", () => {
     assert.equal(applyDelta(95, 25), 100);
@@ -126,10 +134,12 @@ async function transcriptRun() {
       );
       assert.equal(out.degraded, false, "judge fell back to the neutral result");
     });
-    suspicion = applyDelta(suspicion, out.result.delta);
+    const streak = 0; // fixture runs show the judge's raw deltas; streaks are covered above
+    const applied = appliedDelta(out.result.delta, 60, streak);
+    suspicion = applyDelta(suspicion, applied);
     claims = out.result.claims_status;
     console.log(
-      `    "${t.text.slice(0, 60)}${t.text.length > 60 ? "…" : ""}"\n    delta ${out.result.delta >= 0 ? "+" : ""}${out.result.delta} → suspicion ${suspicion} | ${out.result.reasons.join(" / ")}\n    next_probe: ${out.result.next_probe}`,
+      `    "${t.text.slice(0, 60)}${t.text.length > 60 ? "…" : ""}"\n    judge ${out.result.delta >= 0 ? "+" : ""}${out.result.delta}, applied ${applied >= 0 ? "+" : ""}${applied} (gap 60) → suspicion ${suspicion} | ${out.result.reasons.join(" / ")}\n    next_probe: ${out.result.next_probe}`,
     );
   }
   await check("suspicion stayed in [0, 100]", () => assert.ok(suspicion >= 0 && suspicion <= 100));

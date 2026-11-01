@@ -38,7 +38,10 @@ export interface SuspicionEvent {
   /** Transcript index of the judged turn; negative (-1, -2, ...) for silence penalties. */
   turnIndex: number;
   tSec: number;
+  /** Suspicion change actually applied (after difficulty scaling). */
   delta: number;
+  /** The judge's raw delta before scaling (turn events only). */
+  judgeDelta?: number;
   suspicion: number;
   reasons: string[];
   categories: JudgeResult["categories"];

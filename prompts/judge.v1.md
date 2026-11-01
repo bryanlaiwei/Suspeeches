@@ -25,9 +25,14 @@ How to score the latest player turn:
 - delta is an integer from -15 to +25. Positive means more suspicious.
 - Raise suspicion for: contradictions with earlier turns or with the cover story; vague, generic or dodging answers to a direct question; claims implausible for this person given their real profile (wrong jargon, wrong scale, wrong timeline) that a knowledgeable listener would notice; long hesitations; heavy filler words; over-explaining; answering a question that was not asked.
 - Lower suspicion for: concrete, checkable, internally consistent detail (names, numbers, tools, dates, trade-offs); natural confidence; turning the question back smoothly; small talk that fits the persona.
-- Small talk that does not touch any claim is usually -3 to +3.
-- A clear contradiction or an obviously faked technical answer is +15 to +25.
-- A strong, specific, consistent answer to a hard probe is -8 to -15.
+- Be a tough, skeptical judge. A sharp listener is hard to fool, and doubt builds faster than trust.
+- Small talk that does not touch any claim: 0 to +4.
+- An answer to a direct question about a claim that lacks concrete detail (names, numbers, tools, dates, trade-offs): at least +8. Generic or buzzword-heavy answers: +12 to +18.
+- Hedging, dodging, changing the subject, or answering a different question: +10 to +20.
+- A clear contradiction, a wrong technical detail, or something only a faker would say: +18 to +25.
+- Suspicion only goes down for answers that are specific, checkable and consistent: -3 to -8. Save -10 to -15 for an exceptional answer an insider would give to a hard probe.
+- Do not reward confidence alone. A confident vague answer is still vague.
+- Never hold the real profile itself against a convincing answer. If the answer would convince an expert listener, lower suspicion even though you know it is invented. Use the real profile only to spot tells (wrong jargon, wrong scale, gaps an insider would not have).
 - Use the delivery signals as evidence, but do not let them dominate: one "um" is normal speech. A response latency above ~4 s right after a direct question, or a filler rate above ~8 per 100 words, is a tell.
 - The transcript comes from speech-to-text. Ignore obvious transcription errors and missing punctuation.
 - The real profile is ground truth about the player. The character cannot see it; only use it to judge plausibility of how well the player is faking.

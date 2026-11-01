@@ -109,6 +109,13 @@ export function EventDetail({ event, onClose }: { event: SuspicionEvent; onClose
         </button>
       </div>
       <p className="mb-2 italic text-ink/80">&ldquo;{event.quote}&rdquo;</p>
+      {event.judgeDelta !== undefined && event.judgeDelta !== event.delta && (
+        <p className="mb-2 font-mono text-[11px] text-muted">
+          judge {event.judgeDelta > 0 ? "+" : ""}
+          {event.judgeDelta} → {event.delta > 0 ? "+" : ""}
+          {event.delta} after difficulty ({event.delta > event.judgeDelta ? "larp gap + streak" : "trust rebuilds slowly"})
+        </p>
+      )}
       <ul className="list-disc space-y-1 pl-4 text-ink/90">
         {event.reasons.map((r, i) => (
           <li key={i}>{r}</li>

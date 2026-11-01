@@ -4,6 +4,7 @@ import { judgeTurn, npcHintFor } from "./judge";
 import type { GapResult, Profile, Setup, Timing } from "./schemas";
 import { moodNote } from "./mood";
 import {
+  appliedDelta,
   applyDelta,
   CAUGHT_AT,
   moodFor,
@@ -125,13 +126,15 @@ export async function addEvent(
     // The scene may have ended while the judge was thinking.
     if (s.status !== "live") return null;
 
-    s.suspicion = applyDelta(s.suspicion, result.delta);
+    const delta = appliedDelta(result.delta, s.gap.gapScore, suspiciousStreak(s));
+    s.suspicion = applyDelta(s.suspicion, delta);
     s.claims = result.claims_status;
     const event: SuspicionEvent = {
       kind: "turn",
       turnIndex: userTurn.index,
       tSec: userTurn.tSec,
-      delta: result.delta,
+      delta,
+      judgeDelta: result.delta,
       suspicion: s.suspicion,
       reasons: result.reasons,
       categories: result.categories,
@@ -144,7 +147,7 @@ export async function addEvent(
   });
   s.queue = job.catch(() => undefined);
   const judged = await job;
-  return { state: toPublic(s), judged, npcMood: judged ? moodChange(s) : null };
+  return { state: toPublic(s), judged, npcMood: judged ? npcNote(s) : null };
 }
 
 /**
@@ -176,7 +179,20 @@ export async function addSilence(s: Session, silentSinceSec: number, tSec: numbe
   };
   s.events.push(event);
   if (s.suspicion >= CAUGHT_AT) finish(s, "caught", tSec);
-  return { state: toPublic(s), event, npcMood: moodChange(s) };
+  return { state: toPublic(s), event, npcMood: npcNote(s) };
+}
+
+/** How many judged events in a row (most recent first) raised suspicion. */
+function suspiciousStreak(s: Session): number {
+  let n = 0;
+  for (let i = s.events.length - 1; i >= 0 && s.events[i].delta > 0; i--) n++;
+  return n;
+}
+
+/** Note for the NPC after a suspicion change: "end the call" when caught, a new mood, or nothing. */
+function npcNote(s: Session): string | null {
+  if (s.status === "caught") return moodNote("caught") || null;
+  return moodChange(s);
 }
 
 /** Contextual-update text when suspicion moved the NPC into a new mood band, else null. */
