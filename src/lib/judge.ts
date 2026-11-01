@@ -42,6 +42,8 @@ function listenersBlock(setup: JudgeInput["setup"]): string {
     "- Something outside their expertise: they can't tell real from fake detail. They react mostly to delivery, confidence and how the others react, at about a third of the strength.",
     "- Everyone notices contradictions with what was said earlier, long pauses, heavy hedging and dodged questions.",
     "- Small talk that touches no claim: small deltas for everyone.",
+    "",
+    "next_probe in a group scene: start with the name of the listener whose expertise best covers the weakest claim, then what they should ask, e.g. \"Maya should ask them which state library they used.\" Engineering goes to the engineer, design to the designer, business and money to the business person.",
   ].join("\n");
 }
 

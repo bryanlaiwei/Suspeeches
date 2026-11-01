@@ -43,7 +43,12 @@ export async function voiceConnectionFor(setup: Setup): Promise<VoiceConnection>
   if (setup.scenarioId === "group" && setup.group) {
     const chars = setup.group.characters;
     dynamicVariables.cast = chars
-      .map((c) => `- ${c.name} speaks inside <${voiceLabel(c.voiceId)}> tags. Personality: ${c.personality}`)
+      .map(
+        (c) =>
+          `- ${c.name} speaks inside <${voiceLabel(c.voiceId)}> tags. Personality: ${c.personality}${
+            c.expertise ? ` Knows a lot about: ${c.expertise}. Asks mostly about that.` : ""
+          }`,
+      )
       .join("\n");
     dynamicVariables.setting = setup.group.setting || "A casual group conversation.";
     dynamicVariables.first_message = chars

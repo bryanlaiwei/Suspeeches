@@ -353,7 +353,8 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
           dynamicVariables: res.voice.dynamicVariables,
           ...(res.voice.overrides ? { overrides: res.voice.overrides } : {}),
         };
-        if (res.voice.signedUrl) conversation.startSession({ signedUrl: res.voice.signedUrl, connectionType: "websocket", ...common });
+        if (res.voice.signedUrl)
+          conversation.startSession({ signedUrl: res.voice.signedUrl, connectionType: "websocket", stripAudioTags: true, ...common });
         else conversation.startSession({ conversationToken: res.voice.conversationToken!, connectionType: "webrtc", ...common });
       } else {
         beginLive();
