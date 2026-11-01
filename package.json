@@ -10,7 +10,8 @@
     "test:judge": "tsx --env-file-if-exists=.env.local scripts/test-judge.ts",
     "agents:create": "tsx --env-file-if-exists=.env.local scripts/create-agents.ts",
     "typecheck": "tsc --noEmit",
-    "agents:update": "tsx --env-file-if-exists=.env.local scripts/create-agents.ts --update"
+    "agents:update": "tsx --env-file-if-exists=.env.local scripts/create-agents.ts --update",
+    "dev:mock": "MOCK_MODE=1 NEXT_PUBLIC_SUPABASE_URL= next dev"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.3.0",

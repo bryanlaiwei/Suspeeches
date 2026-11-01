@@ -24,6 +24,15 @@ See [PLAN.md](PLAN.md) for the architecture and build order.
 * **Silence penalty:** if it's your turn and you say nothing, a countdown appears. At 8 s of silence suspicion goes up by 6, then by 8 and 10 every further 6 s. The browser reports the silence, and the server checks the timing and applies the penalty (`/api/session/:id/silence`; tune it with the constants in `src/lib/scoring.ts`). The judge is told not to count the same pause again.
 * Score = survival (1000 survived, 500 walked out, 0–250 caught based on time held) × gap multiplier × low-suspicion bonus (1 + (100 − average suspicion)/100).
 
+## Group scenes
+
+Besides the 1-on-1 characters (Dana the recruiter, Priya the founder, or your own), there are two group scenes where up to three people talk to you at once:
+
+* **Launch party (preset):** Maya the CTO, Theo the investor and Jordan the designer.
+* **Custom group:** 2–3 characters you write (name, personality, voice) plus a setting.
+
+Each group is a single ElevenLabs agent using **multi-voice**: the agent wraps each character's words in a voice tag (`<Maya>…</Maya>`), and ElevenLabs speaks each tag in that character's voice. The tags come through to the browser in the agent's text (checked live), so the app splits each response into one transcript line per character and animates only the face that is talking (advanced by the audio's character timings). The custom group agent has six voice tags, one per premade voice; at scene start the server tells it which character uses which tag. Prompts: `prompts/npc/party.v1.md`, `prompts/npc/group.v1.md`, `prompts/npc/_group_rules.v1.md`.
+
 ## Accounts and history
 
 Players sign up with email + password (Supabase Auth). Their real profile and every finished game (debrief, transcript, timeline) are saved to Supabase under row-level security, so each player only sees their own. The browser sends its Supabase access token to the API; `/api/session`, `/api/gap` and `/api/suggest` reject requests without a valid one, which also stops strangers from spending your API credits. `/history` lists past games, and debrief links keep working after a server restart.
@@ -45,7 +54,7 @@ Without keys, `npm run dev` falls back to **mock mode** (a development aid): heu
 ### Create the ElevenLabs agents (once)
 
 ```bash
-npm run agents:create              # creates all three agents
+npm run agents:create              # creates all five agents (recruiter, networking, custom, party, group)
 npm run agents:create recruiter    # or just one
 npm run agents:update              # after editing prompts/npc/*.md: push changes, keep the same IDs
 ```
@@ -76,6 +85,8 @@ Other checks: `npm run typecheck`, `npm run lint`, `npm run build`.
 | `ELEVENLABS_AGENT_ID_RECRUITER` | yes | Agent for the recruiter preset |
 | `ELEVENLABS_AGENT_ID_NETWORKING` | yes | Agent for the networking preset |
 | `ELEVENLABS_AGENT_ID_CUSTOM` | for custom scenes | Agent with the voice override enabled |
+| `ELEVENLABS_AGENT_ID_PARTY` | for the launch party | Multi-voice agent (Maya, Theo, Jordan) |
+| `ELEVENLABS_AGENT_ID_GROUP` | for custom groups | Multi-voice agent with six voice tags |
 | `AGENTBOXD_API_KEY` | no | Handler inbox emails (brief before, debrief after) |
 | `AGENTBOXD_HANDLER_CLIENT_ID` | no (default `sus-handler`) | Idempotent id for the handler inbox |
 | `PUBLIC_APP_URL` | no | Link in debrief emails (Render's `RENDER_EXTERNAL_URL` is used otherwise) |

@@ -1,4 +1,4 @@
-import { presetFor } from "./presets";
+import { castFor, presetFor } from "./presets";
 import type { Profile, Setup } from "./schemas";
 import type { SuspicionEvent, Turn } from "./types";
 
@@ -21,6 +21,17 @@ export function formatClaims(claims: string[]): string {
 
 export function formatScene(setup: Setup): string {
   const preset = presetFor(setup.scenarioId);
+  if (setup.scenarioId === "party" || setup.scenarioId === "group") {
+    const cast = castFor(setup)
+      .map((c, i) =>
+        setup.scenarioId === "group" && setup.group
+          ? `${c.name}: ${setup.group.characters[i].personality.replace(/[.\s]+$/, "")}`
+          : `${c.name}, ${c.title}`,
+      )
+      .join("; ");
+    const where = setup.scenarioId === "group" ? setup.group?.setting || "A casual group conversation." : preset.blurb;
+    return `Group scene (the player talks to several characters at once). Characters: ${cast}. Setting: ${where}\nPlayer's goal: ${setup.goal}\nTime limit: ${Math.round(setup.timeLimitSec / 60)} min`;
+  }
   const who =
     setup.scenarioId === "custom" && setup.custom
       ? `${setup.custom.name}: ${setup.custom.personality}${setup.custom.setting ? ` Setting: ${setup.custom.setting}` : ""}`
@@ -29,6 +40,7 @@ export function formatScene(setup: Setup): string {
 }
 
 export function characterName(setup: Setup): string {
+  if (setup.scenarioId === "party" || setup.scenarioId === "group") return castFor(setup).map((c) => c.name).join(", ").replace(/, ([^,]*)$/, " & $1");
   return setup.scenarioId === "custom" && setup.custom ? setup.custom.name : presetFor(setup.scenarioId).character;
 }
 
@@ -36,7 +48,7 @@ export function formatTranscript(turns: Turn[], npcName: string, maxTurns = 40):
   const recent = turns.slice(-maxTurns);
   if (!recent.length) return "(nothing said yet)";
   return recent
-    .map((t) => `[#${t.index} ${fmtTime(t.tSec)}] ${t.role === "user" ? "PLAYER" : npcName.toUpperCase()}: ${t.text}`)
+    .map((t) => `[#${t.index} ${fmtTime(t.tSec)}] ${t.role === "user" ? "PLAYER" : (t.speaker ?? npcName).toUpperCase()}: ${t.text}`)
     .join("\n");
 }
 

@@ -17,6 +17,8 @@ export interface Turn {
   role: "user" | "agent";
   text: string;
   tSec: number;
+  /** Which character spoke (group scenes). */
+  speaker?: string;
   /** Delivery signals, user turns only. */
   signals?: DeliverySignals;
 }

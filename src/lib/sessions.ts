@@ -107,10 +107,11 @@ export async function addEvent(
   role: "user" | "agent",
   text: string,
   timing: Timing,
+  speaker?: string,
 ): Promise<EventResponse> {
   if (s.status !== "live") return { state: toPublic(s), judged: null };
 
-  const turn: Turn = { index: s.transcript.length, role, text, tSec: timing.tSec };
+  const turn: Turn = { index: s.transcript.length, role, text, tSec: timing.tSec, ...(role === "agent" && speaker ? { speaker } : {}) };
   if (role === "agent") {
     s.transcript.push(turn);
     return { state: toPublic(s), judged: null };

@@ -88,6 +88,24 @@ export function mockDebrief(input: {
   };
 }
 
+/** Scripted multi-voice lines (with tags, like the real group agent emits) for the mock driver. */
+export function mockGroupLines(cast: { name: string; label: string }[]): { firstMessage: string; lines: string[] } {
+  const t = (i: number, text: string) => {
+    const c = cast[i % cast.length];
+    return `<${c.label}>${text}</${c.label}>`;
+  };
+  return {
+    firstMessage: `${t(0, `Oh hey, I'm ${cast[0].name}.`)} ${t(1, `${cast[1].name}. Who are you?`)}`,
+    lines: [
+      `${t(1, "Interesting. What are you working on right now?")}`,
+      `${t(2, "Wait, how big was that team?")} ${t(0, "Yeah, and what was your part exactly?")}`,
+      `${t(0, "Give us a concrete example.")}`,
+      `${t(2, "Hm. That's not what you said a minute ago.")}`,
+      `${t(1, "What would you do differently next time?")}`,
+    ],
+  };
+}
+
 /** Scripted NPC lines for the mock voice driver. */
 export function mockNpcLines(characterName: string): { firstMessage: string; lines: string[] } {
   return {

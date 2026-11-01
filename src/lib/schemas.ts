@@ -13,7 +13,7 @@ export const ProfileSchema = z.object({
 });
 export type Profile = z.infer<typeof ProfileSchema>;
 
-export const ScenarioIdSchema = z.enum(["recruiter", "networking", "custom"]);
+export const ScenarioIdSchema = z.enum(["recruiter", "networking", "custom", "party", "group"]);
 export type ScenarioId = z.infer<typeof ScenarioIdSchema>;
 
 export const CustomCharacterSchema = z.object({
@@ -24,9 +24,26 @@ export const CustomCharacterSchema = z.object({
 });
 export type CustomCharacter = z.infer<typeof CustomCharacterSchema>;
 
+/** A player-built group scene: 2-3 characters, each with a distinct ElevenLabs voice. */
+export const GroupSchema = z
+  .object({
+    setting: z.string().trim().max(300).default(""),
+    characters: z.array(CustomCharacterSchema.omit({ setting: true })).min(2).max(3),
+  })
+  .refine((g) => new Set(g.characters.map((c) => c.voiceId)).size === g.characters.length, {
+    message: "Give each character a different voice",
+    path: ["characters"],
+  })
+  .refine((g) => new Set(g.characters.map((c) => c.name.toLowerCase())).size === g.characters.length, {
+    message: "Give each character a different name",
+    path: ["characters"],
+  });
+export type Group = z.infer<typeof GroupSchema>;
+
 export const SetupSchema = z.object({
   scenarioId: ScenarioIdSchema,
   custom: CustomCharacterSchema.optional(),
+  group: GroupSchema.optional(),
   alias: z.string().trim().min(1).max(80),
   claims: z.array(z.string().trim().min(1).max(240)).min(1).max(8),
   goal: z.string().trim().min(1).max(240),
@@ -125,6 +142,7 @@ export type Timing = z.infer<typeof TimingSchema>;
 
 export const EventBodySchema = z.object({
   role: z.enum(["user", "agent"]),
+  speaker: z.string().trim().max(60).optional(),
   text: z.string().trim().min(1).max(4000),
   timing: TimingSchema,
 });

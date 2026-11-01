@@ -7,11 +7,13 @@ import { fmtTime } from "@/lib/context";
 import { api } from "@/lib/client/api";
 import { playCaught, playRelief, playSpike, playSurvived, unlockAudio } from "@/lib/client/sound";
 import type { SetupDraft } from "@/lib/client/storage";
-import { CUSTOM_PRESET, presetFor } from "@/lib/presets";
+import { castFor, CUSTOM_PRESET, presetFor } from "@/lib/presets";
+import { parseSegments } from "@/lib/voiceTags";
 import { SetupSchema, type Profile, type Setup } from "@/lib/schemas";
 import { moodFor, SILENCE_FIRST_SEC, SILENCE_REPEAT_SEC, SPIKE_DELTA, START_SUSPICION } from "@/lib/scoring";
 import type { ClaimState, EndReason, PublicSessionState, SuspicionEvent, VoiceConnection } from "@/lib/types";
 import { Avatar, type AvatarPalette } from "./Avatar";
+import { Stage } from "./Stage";
 import { EventDetail, SuspicionBar } from "./SuspicionBar";
 import { Transcript, type LiveLine } from "./Transcript";
 import { Button, Card, cx, FictionNote, Input, Shell } from "./ui";
@@ -26,7 +28,10 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
   const router = useRouter();
   const setup = useMemo(() => SetupSchema.parse(draft) as Setup, [draft]);
   const preset = setup.scenarioId === "custom" ? CUSTOM_PRESET : presetFor(setup.scenarioId);
-  const npcName = setup.scenarioId === "custom" ? setup.custom?.name || "Them" : preset.character;
+  const cast = useMemo(() => castFor(setup), [setup]);
+  const isGroup = cast.length > 1;
+  const npcName = isGroup ? "the group" : cast[0].name;
+  const [activeSpeaker, setActiveSpeaker] = useState<string | null>(null);
 
   const [phase, setPhase] = useState<Phase>("briefing");
   const [error, setError] = useState<string | null>(null);
@@ -59,6 +64,13 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
   const npcSpeaking = useRef(false);
   /** Next silence report we owe the server for the current silent stretch. */
   const silenceDue = useRef<{ since: number; strikes: number } | null>(null);
+  /** Who is talking: segments of the current agent response (by spoken length) and chars played so far. */
+  const speech = useRef<{ buffer: string; segments: { name: string; len: number }[]; spoken: number; active: string | null }>({
+    buffer: "",
+    segments: [],
+    spoken: 0,
+    active: null,
+  });
 
   const elapsed = () => (startedAt.current ? (performance.now() - startedAt.current) / 1000 : 0);
 
@@ -81,7 +93,9 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
     },
     onModeChange: ({ mode }) => {
       npcSpeaking.current = mode === "speaking";
+      if (mode === "speaking" && !speech.current.active) setActive(speech.current.segments[0]?.name ?? cast[0].name);
       if (mode === "listening") {
+        setActive(null);
         // eslint-disable-next-line react-hooks/purity -- SDK event callback, not render
         agentStoppedAt.current = performance.now();
         userSpeechStart.current = null;
@@ -92,7 +106,40 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
     onVadScore: ({ vadScore }) => {
       if (vadScore > VAD_SPEECH) markUserSpeaking();
     },
+    // Raw LLM text streams in before the audio, tags included: map out who says what.
+    onAgentChatResponsePart: ({ text, type }) => {
+      const sp = speech.current;
+      if (type === "start") Object.assign(sp, { buffer: "", segments: [], spoken: 0 });
+      else if (type === "delta") sp.buffer += text;
+      sp.segments = speakerSegments(sp.buffer);
+      if (!sp.active && sp.segments[0]) setActive(sp.segments[0].name);
+    },
+    // Audio arrives with character timings: advance through the segments as it plays.
+    onAudioAlignment: (alignment) => {
+      const sp = speech.current;
+      sp.spoken += alignment.chars.length;
+      let acc = 0;
+      for (const seg of sp.segments) {
+        acc += seg.len;
+        if (sp.spoken <= acc) return setActive(seg.name);
+      }
+    },
   });
+
+  /** Names for each tagged part of an agent response (untagged text belongs to the previous speaker). */
+  function speakerSegments(text: string) {
+    let current = cast[0].name;
+    return parseSegments(text).map((s) => {
+      if (s.label) current = cast.find((c) => c.label === s.label || c.name === s.label)?.name ?? current;
+      return { name: current, text: s.text, len: s.text.length + 1 };
+    });
+  }
+
+  function setActive(name: string | null) {
+    if (speech.current.active === name) return;
+    speech.current.active = name;
+    setActiveSpeaker(name);
+  }
 
   /* ---------- engine ---------- */
 
@@ -115,9 +162,13 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
   function onAgentLine(text: string) {
     if (!sessionId.current || endingRef.current) return;
     const tSec = elapsed();
-    pushLine({ role: "agent", text, tSec });
     if (bustedRef.current) bustedRef.current.agentSpoke = true;
-    void api.event(sessionId.current, "agent", text, { responseLatencyMs: null, speechMs: null, tSec }).catch(() => {});
+    // One transcript line per character (group responses contain several voice tags).
+    for (const seg of speakerSegments(text)) {
+      const speaker = isGroup ? seg.name : undefined;
+      pushLine({ role: "agent", text: seg.text, tSec, speaker });
+      void api.event(sessionId.current, "agent", seg.text, { responseLatencyMs: null, speechMs: null, tSec }, speaker).catch(() => {});
+    }
   }
 
   function onUserLine(text: string) {
@@ -291,20 +342,27 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
   function mockSpeak(text: string) {
     onAgentLine(text);
     const synth = typeof window !== "undefined" ? window.speechSynthesis : undefined;
+    const segments = speakerSegments(text);
     mock.current.speaking = true;
     const done = () => {
       mock.current.speaking = false;
+      setActive(null);
       agentStoppedAt.current = performance.now();
     };
-    if (!synth) {
-      setTimeout(done, 400 + text.length * 45);
-      return;
-    }
-    const u = new SpeechSynthesisUtterance(text);
-    u.rate = 1.05;
-    u.onend = done;
-    u.onerror = done;
-    synth.speak(u);
+    // Speak each character's part in turn, lighting up whoever is talking.
+    const next = (i: number) => {
+      const seg = segments[i];
+      if (!seg || endingRef.current) return done();
+      setActive(seg.name);
+      if (!synth) return void setTimeout(() => next(i + 1), 400 + seg.text.length * 45);
+      const u = new SpeechSynthesisUtterance(seg.text);
+      u.rate = 1.05;
+      u.pitch = 0.8 + (cast.findIndex((c) => c.name === seg.name) % 3) * 0.25;
+      u.onend = () => next(i + 1);
+      u.onerror = () => next(i + 1);
+      synth.speak(u);
+    };
+    next(0);
   }
 
   function mockReply() {
@@ -352,7 +410,9 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, voice]);
 
-  const getLevel = useCallback(() => {
+  const getLevel = useCallback((name: string) => {
+    // Only whoever is talking moves their mouth (1-on-1: the single NPC).
+    if (isGroup && speech.current.active !== name) return 0;
     if (voiceRef.current?.mode === "elevenlabs") {
       try {
         return conversation.getOutputVolume();
@@ -364,7 +424,7 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
     if (!mock.current.speaking) return 0;
     const t = performance.now() / 1000;
     return 0.25 + 0.2 * Math.abs(Math.sin(t * 11)) + 0.1 * Math.sin(t * 23);
-  }, [conversation]);
+  }, [conversation, isGroup]);
 
   /* ---------- render ---------- */
 
@@ -379,8 +439,8 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
       <Shell step={3}>
         <Briefing
           setup={setup}
-          npcName={npcName}
-          preset={preset}
+          npcName={isGroup ? preset.character : npcName}
+          cast={cast}
           gap={draft.gap!}
           onStart={start}
           onBack={() => router.push("/setup")}
@@ -420,12 +480,8 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
               <EventDetail event={selectedEvent} onClose={() => setSelected(null)} />
             </div>
           )}
-          <div className={cx("relative mt-2 w-full max-w-[300px]", shaking && "animate-sus-shake")}>
-            <Avatar palette={preset} suspicion={suspicion} getLevel={getLevel} className="w-full drop-shadow-2xl" />
-          </div>
+          <Stage cast={cast} active={activeSpeaker} suspicion={suspicion} getLevel={getLevel} shaking={shaking} />
           <div className="mt-1 text-center">
-            <div className="text-xl font-bold">{npcName}</div>
-            <div className="text-sm text-muted">{setup.scenarioId === "custom" ? "Custom character" : preset.title}</div>
             {phase === "live" && (
               <div className="mt-1 text-xs text-muted">
                 Mood: <span className={cx("font-semibold", MOOD_COLOR[mood])}>{mood}</span>
@@ -445,7 +501,7 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
               <>
                 {!silenceWarning && !busted && (
                   <StatusPill tone={npcTalking ? "brand" : userTalking ? "clean" : "muted"}>
-                    {npcTalking ? `${npcName} is talking` : userTalking ? "You're talking" : "Your turn. Speak up."}
+                    {npcTalking ? `${activeSpeaker ?? cast[0].name} is talking` : userTalking ? "You're talking" : "Your turn. Speak up."}
                   </StatusPill>
                 )}
                 <Button variant="ghost" onClick={() => conversation.setMuted(!conversation.isMuted)}>
@@ -482,7 +538,7 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
 function Briefing({
   setup,
   npcName,
-  preset,
+  cast,
   gap,
   onStart,
   onBack,
@@ -490,7 +546,7 @@ function Briefing({
 }: {
   setup: Setup;
   npcName: string;
-  preset: AvatarPalette;
+  cast: AvatarPalette[];
   gap: NonNullable<SetupDraft["gap"]>;
   onStart: () => void;
   onBack: () => void;
@@ -498,7 +554,11 @@ function Briefing({
 }) {
   return (
     <div className="mx-auto grid w-full max-w-4xl items-center gap-8 pt-6 md:grid-cols-[1fr_1.2fr]">
-      <Avatar palette={preset} suspicion={START_SUSPICION} getLevel={() => 0} className="mx-auto w-64" />
+      <div className={cx("mx-auto flex justify-center", cast.length > 1 ? "-space-x-6" : "")}>
+        {cast.map((c, i) => (
+          <Avatar key={i} palette={c} suspicion={START_SUSPICION} getLevel={() => 0} className={cast.length > 1 ? "w-36" : "w-64"} />
+        ))}
+      </div>
       <Card>
         <p className="text-xs font-bold tracking-[0.25em] text-sus">BRIEFING</p>
         <h1 className="mt-1 text-3xl font-black">You&apos;re about to meet {npcName}.</h1>

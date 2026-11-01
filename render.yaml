@@ -24,6 +24,10 @@ services:
         sync: false
       - key: ELEVENLABS_AGENT_ID_CUSTOM
         sync: false
+      - key: ELEVENLABS_AGENT_ID_PARTY
+        sync: false
+      - key: ELEVENLABS_AGENT_ID_GROUP
+        sync: false
       - key: JUDGE_MODEL
         value: claude-haiku-5-5
       - key: GAP_MODEL

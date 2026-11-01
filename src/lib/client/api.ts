@@ -22,8 +22,8 @@ export const api = {
     post<{ gap: GapResult }>("/api/gap", { profile, alias, claims }),
   createSession: (profile: Profile, setup: Setup, gap?: GapResult | null) =>
     post<CreateSessionResponse>("/api/session", { profile, setup, gap: gap ?? undefined }),
-  event: (id: string, role: "user" | "agent", text: string, timing: Timing) =>
-    post<EventResponse>(`/api/session/${id}/event`, { role, text, timing }),
+  event: (id: string, role: "user" | "agent", text: string, timing: Timing, speaker?: string) =>
+    post<EventResponse>(`/api/session/${id}/event`, { role, text, timing, speaker }),
   silence: (id: string, silentSinceSec: number, tSec: number) =>
     post<SilenceResponse>(`/api/session/${id}/silence`, { silentSinceSec, tSec }),
   end: (id: string, reason: "timeout" | "npc_ended" | "left" | "error", tSec: number) =>

@@ -7,8 +7,9 @@ import { useEffect, useMemo, useState } from "react";
 import { Avatar } from "@/components/Avatar";
 import { Button, Card, cx, FictionNote, Input, Label, Shell, Textarea } from "@/components/ui";
 import { api } from "@/lib/client/api";
-import { loadProfile, loadSetupDraft, saveSetupDraft } from "@/lib/client/storage";
-import { CUSTOM_PRESET, PRESETS, presetFor, VOICES } from "@/lib/presets";
+import { fetchProfile } from "@/lib/client/profileStore";
+import { loadSetupDraft, saveSetupDraft } from "@/lib/client/storage";
+import { castFor, CUSTOM_PRESET, GROUP_PRESET, PARTY_CAST, PARTY_PRESET, PRESETS, presetFor, VOICES } from "@/lib/presets";
 import { ScenarioIdSchema, SetupSchema, type GapResult, type Profile, type ScenarioId } from "@/lib/schemas";
 
 const TIME_OPTIONS = [120, 180, 300, 480];
@@ -26,6 +27,13 @@ function SetupPageInner() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [scenarioId, setScenarioId] = useState<ScenarioId>("recruiter");
   const [custom, setCustom] = useState({ name: "", personality: "", setting: "", voiceId: VOICES[0].id });
+  const [group, setGroup] = useState<{ setting: string; characters: GroupChar[] }>({
+    setting: "",
+    characters: [
+      { name: "", personality: "", voiceId: VOICES[0].id },
+      { name: "", personality: "", voiceId: VOICES[1].id },
+    ],
+  });
   const [alias, setAlias] = useState("");
   const [claims, setClaims] = useState<string[]>([]);
   const [draftClaim, setDraftClaim] = useState("");
@@ -41,36 +49,43 @@ function SetupPageInner() {
   const [starting, setStarting] = useState(false);
 
   useEffect(() => {
-    const p = loadProfile();
-    if (!p) {
-      router.replace("/");
-      return;
-    }
-    const d = loadSetupDraft();
-    /* eslint-disable react-hooks/set-state-in-effect -- hydrate from localStorage once on mount */
-    setProfile(p);
-    setAlias(d?.alias || p.name);
-    if (d?.scenarioId && ScenarioIdSchema.safeParse(d.scenarioId).success) setScenarioId(d.scenarioId);
-    if (d?.custom) setCustom({ ...d.custom, setting: d.custom.setting ?? "" });
-    if (d?.claims?.length) setClaims(d.claims);
-    if (d?.goal) setGoal(d.goal);
-    if (d?.timeLimitSec) setTimeLimitSec(d.timeLimitSec);
-    if (d?.emailHandler && p.email) setEmailHandler(true);
-    if (d?.gap && d.gapFor) {
-      setGap(d.gap);
-      setGapFor(d.gapFor);
-    }
-    /* eslint-enable react-hooks/set-state-in-effect */
+    void fetchProfile().then((p) => {
+      if (!p) {
+        router.replace("/");
+        return;
+      }
+      const d = loadSetupDraft();
+      setProfile(p);
+      setAlias(d?.alias || p.name);
+      if (d?.scenarioId && ScenarioIdSchema.safeParse(d.scenarioId).success) setScenarioId(d.scenarioId);
+      if (d?.custom) setCustom({ ...d.custom, setting: d.custom.setting ?? "" });
+      if (d?.group) setGroup(d.group);
+      if (d?.claims?.length) setClaims(d.claims);
+      if (d?.goal) setGoal(d.goal);
+      if (d?.timeLimitSec) setTimeLimitSec(d.timeLimitSec);
+      if (d?.emailHandler && p.email) setEmailHandler(true);
+      if (d?.gap && d.gapFor) {
+        setGap(d.gap);
+        setGapFor(d.gapFor);
+      }
+    });
   }, [router]);
 
-  const preset = scenarioId === "custom" ? CUSTOM_PRESET : presetFor(scenarioId);
+  const preset = presetFor(scenarioId);
+  const isGroup = scenarioId === "party" || scenarioId === "group";
+  const audience =
+    scenarioId === "custom"
+      ? custom.name || "the character"
+      : scenarioId === "group"
+        ? group.characters.map((c) => c.name).filter(Boolean).join(", ") || "your group"
+        : preset.character;
   const gapKey = useMemo(() => JSON.stringify([alias.trim(), claims]), [alias, claims]);
   const gapFresh = gap && gapFor === gapKey;
 
   function pickScenario(id: ScenarioId) {
-    const next = id === "custom" ? CUSTOM_PRESET : presetFor(id);
+    const next = presetFor(id);
     // Only replace the goal if the player hasn't customised it.
-    if ([...PRESETS, CUSTOM_PRESET].some((p) => p.defaultGoal === goal) || !goal.trim()) setGoal(next.defaultGoal);
+    if (ALL_SCENES.some((p) => p.defaultGoal === goal) || !goal.trim()) setGoal(next.defaultGoal);
     setScenarioId(id);
     setSuggestions([]);
   }
@@ -118,6 +133,7 @@ function SetupPageInner() {
     const parsed = SetupSchema.safeParse({
       scenarioId,
       custom: scenarioId === "custom" ? custom : undefined,
+      group: scenarioId === "group" ? group : undefined,
       alias,
       claims,
       goal,
@@ -131,7 +147,11 @@ function SetupPageInner() {
           ? "Add at least one claim to fake."
           : issue?.path[0] === "custom"
             ? "Give your custom character a name, personality and voice."
-            : `${issue?.path.join(".")}: ${issue?.message}`,
+            : issue?.path[0] === "group"
+              ? issue.message.startsWith("Give each")
+                ? issue.message
+                : "Give every group member a name, personality and voice."
+              : `${issue?.path.join(".")}: ${issue?.message}`,
       );
       return;
     }
@@ -155,7 +175,7 @@ function SetupPageInner() {
             <h2 className="mb-1 text-lg font-bold">1. Pick a scene</h2>
             <p className="mb-4 text-sm text-muted">Each character has their own voice, personality and way of probing.</p>
             <div className="grid gap-3 sm:grid-cols-2">
-              {[...PRESETS, CUSTOM_PRESET].map((p) => (
+              {ALL_SCENES.map((p) => (
                 <button
                   key={p.id}
                   type="button"
@@ -165,11 +185,19 @@ function SetupPageInner() {
                     scenarioId === p.id ? "border-brand bg-brand/10 ring-1 ring-brand/50" : "border-line hover:bg-panel-2",
                   )}
                 >
-                  <Avatar palette={p} suspicion={15} getLevel={() => 0} className="h-16 w-16 shrink-0" />
+                  {p.id === "party" ? (
+                    <span className="flex shrink-0 -space-x-7">
+                      {PARTY_CAST.map((c) => (
+                        <Avatar key={c.name} palette={c} suspicion={15} getLevel={() => 0} className="h-14 w-14" />
+                      ))}
+                    </span>
+                  ) : (
+                    <Avatar palette={p} suspicion={15} getLevel={() => 0} className="h-16 w-16 shrink-0" />
+                  )}
                   <span>
                     <span className="block font-semibold">{p.label}</span>
                     <span className="block text-xs text-muted">
-                      {p.id === "custom" ? p.blurb : `${p.character}, ${p.title}. ${p.blurb}`}
+                      {p.id === "custom" || p.id === "group" || p.id === "party" ? p.blurb : `${p.character}, ${p.title}. ${p.blurb}`}
                     </span>
                   </span>
                 </button>
@@ -214,12 +242,13 @@ function SetupPageInner() {
                 </label>
               </div>
             )}
+            {scenarioId === "group" && <GroupBuilder group={group} onChange={setGroup} />}
           </Card>
 
           <Card>
             <h2 className="mb-1 text-lg font-bold">2. Your cover story</h2>
             <p className="mb-4 text-sm text-muted">
-              This is all {scenarioId === "custom" ? "the character" : preset.character} will know about you.
+              This is all {audience} will know about you.{isGroup && " They'll all be listening."}
             </p>
             <label className="mb-4 block">
               <Label hint="the name you'll go by">Alias</Label>
@@ -363,10 +392,93 @@ function SetupPageInner() {
           <FictionNote />
           {error && <p className="rounded-xl border border-sus/40 bg-sus/10 px-4 py-3 text-sm text-sus">{error}</p>}
           <Button type="button" className="w-full py-4 text-base" onClick={start} disabled={starting || !claims.length}>
-            {starting ? "Preparing the scene…" : `Enter the scene with ${scenarioId === "custom" ? custom.name || "your character" : preset.character} →`}
+            {starting ? "Preparing the scene…" : `Enter the scene with ${audience} →`}
           </Button>
         </div>
       </div>
     </Shell>
+  );
+}
+
+const ALL_SCENES = [...PRESETS, PARTY_PRESET, CUSTOM_PRESET, GROUP_PRESET];
+
+type GroupChar = { name: string; personality: string; voiceId: string };
+
+/** Builder for a custom group scene: 2-3 characters, each with their own voice. */
+function GroupBuilder({
+  group,
+  onChange,
+}: {
+  group: { setting: string; characters: GroupChar[] };
+  onChange: (g: { setting: string; characters: GroupChar[] }) => void;
+}) {
+  const setChar = (i: number, patch: Partial<GroupChar>) =>
+    onChange({ ...group, characters: group.characters.map((c, j) => (j === i ? { ...c, ...patch } : c)) });
+  const used = new Set(group.characters.map((c) => c.voiceId));
+  const preview = castFor({ scenarioId: "group", group: { ...group, characters: group.characters.map((c, i) => ({ ...c, name: c.name || `#${i + 1}` })) } });
+  return (
+    <div className="mt-4 space-y-3">
+      <label className="block">
+        <Label hint="optional">Setting</Label>
+        <Input
+          value={group.setting}
+          onChange={(e) => onChange({ ...group, setting: e.target.value })}
+          placeholder="A backyard barbecue. Everyone works in tech except you, supposedly."
+        />
+      </label>
+      {group.characters.map((c, i) => (
+        <div key={i} className="flex gap-3 rounded-xl border border-line bg-bg/40 p-3">
+          <Avatar palette={preview[i]} suspicion={15} getLevel={() => 0} className="h-14 w-14 shrink-0" />
+          <div className="grid flex-1 gap-2 sm:grid-cols-2">
+            <Input value={c.name} onChange={(e) => setChar(i, { name: e.target.value })} placeholder={`Character ${i + 1} name`} />
+            <select
+              value={c.voiceId}
+              onChange={(e) => setChar(i, { voiceId: e.target.value })}
+              className="w-full rounded-xl border border-line bg-bg/60 px-3 py-2.5 text-sm outline-none focus:border-brand"
+            >
+              {VOICES.map((v) => (
+                <option key={v.id} value={v.id} disabled={v.id !== c.voiceId && used.has(v.id)}>
+                  {v.label}
+                </option>
+              ))}
+            </select>
+            <Textarea
+              rows={2}
+              className="sm:col-span-2"
+              value={c.personality}
+              onChange={(e) => setChar(i, { personality: e.target.value })}
+              placeholder="A retired airline captain. Warm, nosy, loves shop talk."
+            />
+          </div>
+          {group.characters.length > 2 && (
+            <button
+              type="button"
+              className="self-start text-muted hover:text-sus"
+              onClick={() => onChange({ ...group, characters: group.characters.filter((_, j) => j !== i) })}
+              aria-label={`Remove character ${i + 1}`}
+            >
+              ✕
+            </button>
+          )}
+        </div>
+      ))}
+      {group.characters.length < 3 && (
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={() =>
+            onChange({
+              ...group,
+              characters: [
+                ...group.characters,
+                { name: "", personality: "", voiceId: VOICES.find((v) => !used.has(v.id))?.id ?? VOICES[0].id },
+              ],
+            })
+          }
+        >
+          + Add a third person
+        </Button>
+      )}
+    </div>
   );
 }

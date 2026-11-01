@@ -1,6 +1,7 @@
 import { characterName } from "./context";
 import { env, voiceMock } from "./env";
-import { mockNpcLines } from "./mock";
+import { mockGroupLines, mockNpcLines } from "./mock";
+import { castFor, voiceLabel } from "./presets";
 import type { Setup } from "./schemas";
 import type { VoiceConnection } from "./types";
 
@@ -14,7 +15,10 @@ export class VoiceConfigError extends Error {}
  */
 export async function voiceConnectionFor(setup: Setup): Promise<VoiceConnection> {
   if (voiceMock()) {
-    const { firstMessage, lines } = mockNpcLines(characterName(setup));
+    const { firstMessage, lines } =
+      setup.scenarioId === "party" || setup.scenarioId === "group"
+        ? mockGroupLines(castFor(setup))
+        : mockNpcLines(characterName(setup));
     return { mode: "mock", firstMessage, lines };
   }
 
@@ -32,6 +36,21 @@ export async function voiceConnectionFor(setup: Setup): Promise<VoiceConnection>
     scene_goal: setup.goal,
     time_limit_minutes: String(Math.max(1, Math.round(setup.timeLimitSec / 60))),
   };
+
+  if (setup.scenarioId === "group" && setup.group) {
+    const chars = setup.group.characters;
+    dynamicVariables.cast = chars
+      .map((c) => `- ${c.name} speaks inside <${voiceLabel(c.voiceId)}> tags. Personality: ${c.personality}`)
+      .join("\n");
+    dynamicVariables.setting = setup.group.setting || "A casual group conversation.";
+    dynamicVariables.first_message = chars
+      .map((c, i) =>
+        i === chars.length - 1
+          ? `<${voiceLabel(c.voiceId)}>And I'm ${c.name}. Who are you?</${voiceLabel(c.voiceId)}>`
+          : `<${voiceLabel(c.voiceId)}>${i === 0 ? "Oh hey! " : ""}I'm ${c.name}.</${voiceLabel(c.voiceId)}>`,
+      )
+      .join(" ");
+  }
 
   if (setup.scenarioId === "custom" && setup.custom) {
     dynamicVariables.character_name = setup.custom.name;

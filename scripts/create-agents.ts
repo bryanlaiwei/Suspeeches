@@ -14,7 +14,9 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { parseFrontmatter } from "../src/lib/prompts";
 
-const SCENARIOS = ["recruiter", "networking", "custom"] as const;
+const SCENARIOS = ["recruiter", "networking", "custom", "party", "group"] as const;
+/** Group agents speak as several characters via ElevenLabs multi-voice tags. */
+const GROUP_SCENARIOS = new Set<string>(["party", "group"]);
 
 const PLACEHOLDERS: Record<string, string> = {
   alias: "Alex",
@@ -24,6 +26,9 @@ const PLACEHOLDERS: Record<string, string> = {
   character_name: "Morgan",
   character_personality: "Friendly, curious and a little nosy.",
   character_setting: "A casual first meeting at a coffee shop.",
+  cast: "- Morgan speaks inside <George> tags. Personality: friendly and curious.\n- Riley speaks inside <Rachel> tags. Personality: blunt and skeptical.",
+  setting: "A casual group conversation at a friend's barbecue.",
+  first_message: "<George>Oh hey, come join us!</George> <Rachel>Who are you?</Rachel>",
 };
 
 function load(file: string) {
@@ -32,7 +37,16 @@ function load(file: string) {
 
 function agentBody(scenario: (typeof SCENARIOS)[number]) {
   const sheet = load(`${scenario}.v1.md`);
-  const rules = load("_rules.v1.md");
+  const rules = load(GROUP_SCENARIOS.has(scenario) ? "_group_rules.v1.md" : "_rules.v1.md");
+  // "Label|voice_id|description; ..." → ElevenLabs multi-voice supported_voices.
+  const supportedVoices = (sheet.meta.voices ?? "")
+    .split(";")
+    .map((v) => v.trim())
+    .filter(Boolean)
+    .map((v) => {
+      const [label, voice_id, description] = v.split("|").map((x) => x.trim());
+      return { label, voice_id, description };
+    });
   const prompt = `${sheet.body}\n\n${rules.body}`;
   const used = Object.fromEntries(
     Object.entries(PLACEHOLDERS).filter(([k]) => prompt.includes(`{{${k}}}`) || sheet.meta.first_message?.includes(`{{${k}}}`)),
@@ -55,7 +69,7 @@ function agentBody(scenario: (typeof SCENARIOS)[number]) {
         },
         dynamic_variables: { dynamic_variable_placeholders: used },
       },
-      tts: { voice_id: sheet.meta.voice_id },
+      tts: { voice_id: sheet.meta.voice_id, ...(supportedVoices.length ? { supported_voices: supportedVoices } : {}) },
       conversation: {
         max_duration_seconds: 660,
         client_events: [
@@ -67,6 +81,8 @@ function agentBody(scenario: (typeof SCENARIOS)[number]) {
           "agent_response",
           "agent_response_correction",
           "vad_score",
+          // Raw LLM text as it streams: keeps the multi-voice tags, so the app knows who is talking.
+          "agent_chat_response_part",
         ],
       },
     },

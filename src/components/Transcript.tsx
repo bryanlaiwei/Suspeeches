@@ -7,6 +7,8 @@ import { cx } from "./ui";
 export interface LiveLine {
   id: number;
   role: "user" | "agent" | "system";
+  /** Character name for agent lines in group scenes. */
+  speaker?: string;
   text: string;
   tSec: number;
   /** undefined = not a judged line; null = judging; number = delta */
@@ -61,7 +63,7 @@ export function Transcript({
             className={cx("flex flex-col transition-opacity", l.role === "user" ? "items-end" : "items-start", future && "opacity-25")}
           >
             <span className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted">
-              {l.role === "user" ? "You" : npcName} · {fmtTime(l.tSec)}
+              {l.role === "user" ? "You" : (l.speaker ?? npcName)} · {fmtTime(l.tSec)}
             </span>
             <div
               className={cx(

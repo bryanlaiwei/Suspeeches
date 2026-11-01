@@ -12,5 +12,5 @@ export async function POST(req: Request, ctx: RouteContext<"/api/session/[id]/ev
   if (!s) return Response.json({ error: "Session not found" }, { status: 404 });
   const body = await parseBody(req, EventBodySchema);
   if (!body.ok) return body.res;
-  return Response.json(await addEvent(s, body.data.role, body.data.text, body.data.timing));
+  return Response.json(await addEvent(s, body.data.role, body.data.text, body.data.timing, body.data.speaker));
 }

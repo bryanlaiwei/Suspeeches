@@ -75,6 +75,7 @@ function Debrief() {
       role: t.role,
       text: t.text,
       tSec: t.tSec,
+      speaker: t.speaker,
       delta: t.role === "user" ? (byTurn.get(t.index)?.delta ?? undefined) : undefined,
       turnIndex: t.index,
     }));

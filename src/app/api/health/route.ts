@@ -12,7 +12,7 @@ export async function GET() {
       anthropic: !!env.anthropicKey,
       elevenlabs: !!env.elevenLabsKey,
       agents: Object.fromEntries(
-        ["recruiter", "networking", "custom"].map((s) => [s, !!env.agentId(s)]),
+        ["recruiter", "networking", "custom", "party", "group"].map((s) => [s, !!env.agentId(s)]),
       ),
       agentboxd: !!env.agentboxdKey,
       accounts: authEnabled(),
