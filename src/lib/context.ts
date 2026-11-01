@@ -30,13 +30,13 @@ export function formatScene(setup: Setup): string {
       )
       .join("; ");
     const where = setup.scenarioId === "group" ? setup.group?.setting || "A casual group conversation." : preset.blurb;
-    return `Group scene (the player talks to several characters at once). Characters: ${cast}. Setting: ${where}\nPlayer's goal: ${setup.goal}\nCharacters' mood going in: ${setup.mood}\nTime limit: ${Math.round(setup.timeLimitSec / 60)} min`;
+    return `Group scene (the player talks to several characters at once). Characters: ${cast}. Setting: ${where}\nPlayer's goal: ${setup.goal}\nTime limit: ${Math.round(setup.timeLimitSec / 60)} min`;
   }
   const who =
     setup.scenarioId === "custom" && setup.custom
       ? `${setup.custom.name}: ${setup.custom.personality}${setup.custom.setting ? ` Setting: ${setup.custom.setting}` : ""}`
       : `${preset.character}, ${preset.title}. ${preset.blurb}`;
-  return `Character: ${who}\nPlayer's goal: ${setup.goal}\nCharacter's mood going in: ${setup.mood}\nTime limit: ${Math.round(setup.timeLimitSec / 60)} min`;
+  return `Character: ${who}\nPlayer's goal: ${setup.goal}\nTime limit: ${Math.round(setup.timeLimitSec / 60)} min`;
 }
 
 export function characterName(setup: Setup): string {

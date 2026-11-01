@@ -3,9 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/Auth";
-import { StageShell } from "@/components/Shells";
-import { Btn, cx, Face, Input, Label } from "@/components/ui";
-import { fetchProfile } from "@/lib/client/profileStore";
+import { Button, Card, cx, FictionNote, Input, Label, Shell } from "@/components/ui";
 import { authEnabled, supabase } from "@/lib/client/supabase";
 
 export default function LoginPage() {
@@ -19,7 +17,7 @@ export default function LoginPage() {
   const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!authEnabled || (!loading && user)) void fetchProfile().then((p) => router.replace(p ? "/home" : "/account"));
+    if (!authEnabled || (!loading && user)) router.replace("/");
   }, [user, loading, router]);
 
   async function submit(e: React.FormEvent) {
@@ -38,42 +36,44 @@ export default function LoginPage() {
     if (mode === "signup" && !res.data.session) {
       setNotice("Check your inbox to confirm your email, then sign in.");
       setMode("signin");
+      return;
     }
+    router.replace("/");
   }
 
   return (
-    <StageShell sparkles>
-      <div className="flex flex-1 items-center justify-center px-5 pb-16">
-        <div className="animate-sus-pop w-full max-w-md rounded-[36px] bg-white p-8 text-ink shadow-[0_8px_0_rgba(0,0,0,0.12)]">
-          <div className="flex items-center gap-4">
-            <Face art="custom-female" expression="happy" size={72} />
-            <div>
-              <h1 className="text-3xl font-black leading-tight">{mode === "signin" ? "Welcome back, agent." : "New in town?"}</h1>
-              <p className="font-bold text-muted">{mode === "signin" ? "Your aliases missed you." : "Make an account. Your secrets stay secret."}</p>
-            </div>
-          </div>
-          <div className="mt-6 flex rounded-2xl bg-lav p-1">
+    <Shell>
+      <div className="mx-auto grid w-full max-w-4xl flex-1 items-center gap-10 pt-6 md:grid-cols-2">
+        <div>
+          <h1 className="text-5xl font-black leading-[1.02] tracking-tight">
+            Don&apos;t give
+            <br />
+            yourself <span className="text-sus">away.</span>
+          </h1>
+          <p className="mt-4 text-muted">
+            Sign in to save your real profile and every debrief. Your profile is only ever shown to the hidden judge.
+          </p>
+        </div>
+        <Card>
+          <div className="mb-5 flex rounded-xl border border-line p-1 text-sm">
             {(["signin", "signup"] as const).map((m) => (
               <button
                 key={m}
                 type="button"
                 onClick={() => (setMode(m), setError(null))}
-                className={cx(
-                  "flex-1 rounded-xl py-2.5 text-sm font-black uppercase tracking-widest transition",
-                  mode === m ? "bg-white text-blue shadow-[0_2px_0_var(--lav-2)]" : "text-muted",
-                )}
+                className={cx("flex-1 rounded-lg py-2 font-semibold", mode === m ? "bg-brand text-white" : "text-muted hover:text-ink")}
               >
-                {m === "signin" ? "Sign in" : "Sign up"}
+                {m === "signin" ? "Sign in" : "Create account"}
               </button>
             ))}
           </div>
-          <form onSubmit={submit} className="mt-5 space-y-4">
+          <form onSubmit={submit} className="space-y-4">
             <label className="block">
               <Label>Email</Label>
               <Input type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
             </label>
             <label className="block">
-              <Label hint={mode === "signup" ? "6+ characters" : undefined}>Password</Label>
+              <Label hint={mode === "signup" ? "at least 6 characters" : undefined}>Password</Label>
               <Input
                 type="password"
                 autoComplete={mode === "signin" ? "current-password" : "new-password"}
@@ -83,17 +83,15 @@ export default function LoginPage() {
                 required
               />
             </label>
-            {error && <p className="rounded-2xl bg-red/10 px-4 py-3 text-sm font-bold text-red">{error}</p>}
-            {notice && <p className="rounded-2xl bg-green-soft px-4 py-3 text-sm font-bold text-green">{notice}</p>}
-            <Btn type="submit" size="lg" className="w-full" disabled={busy}>
-              {busy ? "One sec…" : mode === "signin" ? "Let me in" : "Create my account"}
-            </Btn>
+            {error && <p className="text-sm text-sus">{error}</p>}
+            {notice && <p className="text-sm text-clean">{notice}</p>}
+            <Button type="submit" className="w-full py-3" disabled={busy}>
+              {busy ? "One sec…" : mode === "signin" ? "Sign in →" : "Create account →"}
+            </Button>
           </form>
-          <p className="mt-5 text-center text-xs font-bold text-muted">
-            Characters email you a follow-up after each call, at this address.
-          </p>
-        </div>
+          <FictionNote className="mt-5" />
+        </Card>
       </div>
-    </StageShell>
+    </Shell>
   );
 }

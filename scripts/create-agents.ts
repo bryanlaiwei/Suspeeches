@@ -23,7 +23,6 @@ const PLACEHOLDERS: Record<string, string> = {
   cover_story: "- I'm a product designer with five years of experience",
   scene_goal: "Make a good impression",
   time_limit_minutes: "5",
-  starting_mood: "You are alert and professional: friendly, but you notice details.",
   character_name: "Morgan",
   character_personality: "Friendly, curious and a little nosy.",
   character_setting: "A casual first meeting at a coffee shop.",

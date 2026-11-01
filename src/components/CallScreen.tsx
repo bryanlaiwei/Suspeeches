@@ -2,88 +2,11 @@
 
 import { useState } from "react";
 import { fmtTime } from "@/lib/context";
-import { PLAYER_ART, type CastMember } from "@/lib/presets";
-import type { Setup } from "@/lib/schemas";
+import { playerArt, type CastMember } from "@/lib/presets";
 import type { EndReason } from "@/lib/types";
 import { StageShell } from "./Shells";
-import { Btn, Bubble, cx, Face, FictionNote, Input } from "./ui";
+import { Btn, Bubble, cx, Face, Input } from "./ui";
 import { useAnimatedNumber } from "./useAnimatedNumber";
-
-/* ---------- 06: call invite ---------- */
-
-const INVITE_LINES: Record<Setup["scenarioId"], (alias: string) => [string, string]> = {
-  recruiter: (a) => [`Hi ${a}! Thanks for applying.`, "Got a few minutes for a quick chat about the role?"],
-  networking: (a) => [`Hey ${a}! A friend said we should connect.`, "Free for a quick coffee chat on video?"],
-  party: (a) => [`Hi ${a}, it's the Lumen team!`, "The whole panel is ready when you are. No pressure. Okay, a little pressure."],
-  custom: (a) => [`Hey ${a}!`, "Got a minute to chat?"],
-  group: (a) => [`Hey ${a}, we're all here!`, "Hop on, we've got questions."],
-};
-
-export function CallInvite({
-  setup,
-  cast,
-  onAccept,
-  onDecline,
-  error,
-  busy,
-}: {
-  setup: Setup;
-  cast: CastMember[];
-  onAccept: () => void;
-  onDecline: () => void;
-  error: string | null;
-  busy: boolean;
-}) {
-  const [l1, l2] = INVITE_LINES[setup.scenarioId](setup.alias);
-  const group = cast.length > 1;
-  return (
-    <StageShell
-      logo={false}
-      right={null}
-    >
-      <button type="button" onClick={onDecline} aria-label="Close" className="absolute left-6 top-6 z-20 text-white/90 hover:text-white md:left-10">
-        <svg viewBox="0 0 24 24" className="h-8 w-8" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
-          <path d="M5 5l14 14M19 5 5 19" />
-        </svg>
-      </button>
-      <div className="flex flex-1 items-center justify-center px-5 py-16">
-        <div className="animate-sus-pop w-full max-w-md rounded-[36px] bg-white p-8 text-ink shadow-[0_8px_0_rgba(0,0,0,0.12)]">
-          <div className={cx("flex justify-center", group && "-space-x-6")}>
-            {cast.map((c) => (
-              <Face key={c.name} art={c.art} expression="chill" size={group ? 104 : 150} ring={group ? "#fff" : undefined} className="bg-white" />
-            ))}
-          </div>
-          <h1 className="mt-4 text-center text-4xl font-black">{group ? cast.map((c) => c.name).join(", ") : cast[0].name}</h1>
-          <p className="text-center font-bold text-muted">{group ? "Interview panel" : cast[0].title}</p>
-          <div className="mt-6 space-y-3">
-            <p className="w-fit rounded-2xl bg-lav px-5 py-3 font-extrabold">{l1}</p>
-            <p className="w-fit rounded-2xl bg-lav px-5 py-3 font-extrabold">{l2}</p>
-          </div>
-          <div className="mt-5 flex items-center gap-4 rounded-2xl border-2 border-green bg-green-soft px-4 py-3">
-            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-green text-white">
-              <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinejoin="round">
-                <rect x="3" y="7" width="12" height="10" rx="2" />
-                <path d="m15 11 6-3v8l-6-3" />
-              </svg>
-            </span>
-            <span>
-              <span className="block text-xl font-black text-green">Video call</span>
-              <span className="block text-sm font-bold text-muted">Now · about {Math.round(setup.timeLimitSec / 60)} minutes · headphones on 🎧</span>
-            </span>
-          </div>
-          {error && <p className="mt-4 rounded-2xl bg-red/10 px-4 py-3 text-sm font-bold text-red">{error}</p>}
-          <Btn className="mt-5 w-full" size="lg" onClick={onAccept} disabled={busy}>
-            {busy ? "Dialing…" : "Accept"}
-          </Btn>
-          <Btn tone="white" className="mt-3 w-full" size="lg" onClick={onDecline}>
-            Decline
-          </Btn>
-          <FictionNote className="mt-5 text-center" />
-        </div>
-      </div>
-    </StageShell>
-  );
-}
 
 /* ---------- 07: live call ---------- */
 
@@ -203,11 +126,9 @@ export function CallStage({
   pop,
   shaking,
   status,
-  toast,
   muted,
   onMute,
   onHangUp,
-  setup,
   mockInput,
 }: {
   cast: CastMember[];
@@ -223,14 +144,11 @@ export function CallStage({
   shaking: boolean;
   /** Small status line under the people ("Sam is waiting… 3s", "Connecting…"). */
   status: { text: string; tone: "warn" | "red" | "soft" } | null;
-  toast: string | null;
   muted: boolean | null;
   onMute: () => void;
   onHangUp: () => void;
-  setup: Setup;
   mockInput: React.ReactNode;
 }) {
-  const [notes, setNotes] = useState(false);
   const group = cast.length > 1;
   return (
     <StageShell right={<TimerCard remaining={remaining} />}>
@@ -283,16 +201,11 @@ export function CallStage({
 
         {/* the desk */}
         <div className="relative mt-6">
-          {toast && (
-            <div className="animate-sus-pop absolute -top-14 left-1/2 z-10 -translate-x-1/2 rounded-2xl bg-ink/85 px-4 py-2 text-sm font-bold text-white">
-              {toast}
-            </div>
-          )}
           <div className="mx-auto h-10 max-w-6xl rounded-t-[40px] bg-orange shadow-[inset_0_-10px_0_var(--orange-dark)]" />
           <div className="mx-auto max-w-5xl bg-[#e07b00] px-6 pb-8 pt-6">
             <div className="mx-auto flex max-w-3xl items-start gap-4">
               <div className="flex flex-col items-center">
-                <Face art={PLAYER_ART} expression="chill" size={68} ring="#fff" talking={userTalking} />
+                <Face art={playerArt(cast)} expression="chill" size={68} ring="#fff" talking={userTalking} />
                 <span className="mt-1 text-xs font-black tracking-widest text-white">YOU</span>
               </div>
               <div className="flex-1 pt-2">
@@ -325,22 +238,7 @@ export function CallStage({
                   <path d="M3 14.5c4.9-4.7 13.1-4.7 18 0l-2.5 2.8-3.4-1.5v-2.4a10.4 10.4 0 0 0-6.2 0v2.4l-3.4 1.5L3 14.5Z" />
                 </svg>
               </button>
-              <RoundBtn label="Your cover" onClick={() => setNotes((n) => !n)} active={notes}>
-                <path d="M7 3h7l4 4v14H7V3Zm7 0v4h4M10 12h5M10 16h5" />
-              </RoundBtn>
             </div>
-            {notes && (
-              <div className="animate-sus-pop mx-auto mt-5 max-w-xl rounded-3xl bg-white p-5 text-ink">
-                <p className="text-xs font-black tracking-widest text-muted">YOUR COVER (DON&apos;T READ IT OUT LOUD 🤫)</p>
-                <p className="mt-1 text-lg font-black">{setup.alias}</p>
-                <ul className="mt-2 space-y-1 text-sm font-bold">
-                  {setup.claims.map((c) => (
-                    <li key={c}>• {c}</li>
-                  ))}
-                </ul>
-                <p className="mt-3 text-sm font-bold text-muted">Goal: {setup.goal}</p>
-              </div>
-            )}
             {mockInput}
           </div>
         </div>

@@ -5,13 +5,15 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/client/api";
 import { playCaught, playRelief, playSpike, playSurvived, unlockAudio } from "@/lib/client/sound";
-import { saveSetupDraft, type SetupDraft } from "@/lib/client/storage";
-import { castFor } from "@/lib/presets";
+import type { SetupDraft } from "@/lib/client/storage";
+import { castFor, type CastMember } from "@/lib/presets";
 import { parseSegments } from "@/lib/voiceTags";
 import { SetupSchema, type Profile, type Setup } from "@/lib/schemas";
-import { CALL_MOODS, SILENCE_FIRST_SEC, SILENCE_REPEAT_SEC, SPIKE_DELTA } from "@/lib/scoring";
+import { SILENCE_FIRST_SEC, SILENCE_REPEAT_SEC, SPIKE_DELTA, START_SUSPICION } from "@/lib/scoring";
 import type { EndReason, PublicSessionState, SuspicionEvent, VoiceConnection } from "@/lib/types";
-import { CallInvite, CallStage, EndOverlay, MockInput } from "./CallScreen";
+import { CallStage, EndOverlay, MockInput } from "./CallScreen";
+import { fmtTime } from "@/lib/context";
+import { Button, Card, cx, Face, FictionNote, Shell } from "./ui";
 import type { LiveLine } from "./Transcript";
 import { useAnimatedNumber } from "./useAnimatedNumber";
 
@@ -33,7 +35,6 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
   const [voice, setVoice] = useState<VoiceConnection | null>(null);
   const [lines, setLines] = useState<LiveLine[]>([]);
   const [remaining, setRemaining] = useState(setup.timeLimitSec);
-  const [toast, setToast] = useState<string | null>(null);
   const [lastDelta, setLastDelta] = useState<{ delta: number; key: number } | null>(null);
   const [shaking, setShaking] = useState(false);
   const [ending, setEnding] = useState<EndReason | null>(null);
@@ -42,7 +43,7 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
   const [silentFor, setSilentFor] = useState(0);
   const [busted, setBusted] = useState(false);
 
-  const suspicion = useAnimatedNumber(state?.suspicion ?? CALL_MOODS[setup.mood].start, 5);
+  const suspicion = useAnimatedNumber(state?.suspicion ?? START_SUSPICION, 5);
 
   // Mutable engine state lives in refs so SDK callbacks never see stale values.
   const sessionId = useRef<string | null>(null);
@@ -283,13 +284,6 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
 
   function react(e: SuspicionEvent) {
     setLastDelta({ delta: e.delta, key: e.turnIndex });
-    // A quick hint of what they noticed (the full reasons are in the results breakdown).
-    const reason = e.reasons[0];
-    if (reason && Math.abs(e.delta) >= 4) {
-      const text = `${e.delta > 0 ? "🤨" : "😌"} ${reason}`;
-      setToast(text);
-      setTimeout(() => setToast((t) => (t === text ? null : t)), 4500);
-    }
     if (e.kind === "silence") {
       playSpike(0.35);
       setShaking(true);
@@ -340,7 +334,6 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
     unlockAudio();
     setError(null);
     setPhase("connecting");
-    saveSetupDraft({ ...draft, callReady: false });
     try {
       const res = await api.createSession(profile, setup, draft.gap);
       sessionId.current = res.state.id;
@@ -460,7 +453,11 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
   const npcShown = agentBurst.find((l) => l.speaker && l.speaker === activeSpeaker) ?? agentBurst.at(-1) ?? null;
 
   if (phase === "briefing" || (phase === "error" && !hasSession)) {
-    return <CallInvite setup={setup} cast={cast} busy={false} error={error} onAccept={start} onDecline={() => router.push("/home")} />;
+    return (
+      <Shell step={2}>
+        <Briefing setup={setup} cast={cast} gap={draft.gap!} onStart={start} onBack={() => router.push("/setup")} error={error} />
+      </Shell>
+    );
   }
 
   const status: { text: string; tone: "warn" | "red" | "soft" } | null =
@@ -492,11 +489,9 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
         pop={lastDelta}
         shaking={shaking}
         status={status}
-        toast={toast}
         muted={voice?.mode === "elevenlabs" ? conversation.isMuted : null}
         onMute={() => conversation.setMuted(!conversation.isMuted)}
         onHangUp={() => void finish("left")}
-        setup={setup}
         mockInput={
           voice?.mode === "mock" && phase === "live" ? <MockInput onSend={(t) => onUserLine(t)} onTyping={markUserSpeaking} /> : null
         }
@@ -510,4 +505,74 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
 function nextSilenceAt(quiet: number): number {
   if (quiet < SILENCE_FIRST_SEC) return SILENCE_FIRST_SEC;
   return SILENCE_FIRST_SEC + Math.ceil((quiet - SILENCE_FIRST_SEC + 0.001) / SILENCE_REPEAT_SEC) * SILENCE_REPEAT_SEC;
+}
+
+function Briefing({
+  setup,
+  cast,
+  gap,
+  onStart,
+  onBack,
+  error,
+}: {
+  setup: Setup;
+  cast: CastMember[];
+  gap: NonNullable<SetupDraft["gap"]>;
+  onStart: () => void;
+  onBack: () => void;
+  error: string | null;
+}) {
+  const npcName = cast.length > 1 ? `${cast.slice(0, -1).map((c) => c.name).join(", ")} & ${cast.at(-1)!.name}` : cast[0].name;
+  return (
+    <div className="mx-auto grid w-full max-w-4xl items-center gap-8 pt-6 md:grid-cols-[1fr_1.2fr]">
+      <div className={cx("mx-auto flex justify-center", cast.length > 1 ? "-space-x-6" : "")}>
+        {cast.map((c, i) => (
+          <Face key={i} art={c.art} expression="happy" size={cast.length > 1 ? 140 : 250} ring={cast.length > 1 ? "#fff" : undefined} />
+        ))}
+      </div>
+      <Card>
+        <p className="text-xs font-black tracking-[0.25em] text-red">BRIEFING</p>
+        <h1 className="mt-1 text-3xl font-black">You&apos;re about to meet {npcName}.</h1>
+        <p className="mt-2 font-bold text-muted">
+          You are <strong className="text-ink">{setup.alias}</strong>. {npcName} only knows this:
+        </p>
+        <ul className="mt-3 space-y-2 font-bold">
+          {setup.claims.map((c) => (
+            <li key={c} className="rounded-2xl bg-lav px-4 py-2.5">
+              {c}
+            </li>
+          ))}
+        </ul>
+        <dl className="mt-4 grid grid-cols-3 gap-3 text-center text-xs font-black uppercase tracking-widest text-muted">
+          <div className="rounded-2xl bg-lav p-3">
+            <dt>Goal</dt>
+            <dd className="mt-1 text-[12px] font-bold normal-case tracking-normal text-ink">{setup.goal}</dd>
+          </div>
+          <div className="rounded-2xl bg-lav p-3">
+            <dt>Clock</dt>
+            <dd className="mt-1 text-2xl font-black text-ink">{fmtTime(setup.timeLimitSec)}</dd>
+          </div>
+          <div className="rounded-2xl bg-lav p-3">
+            <dt>Larp gap</dt>
+            <dd className="mt-1 text-2xl font-black text-ink">
+              {gap.gapScore} <span className="text-xs text-purple">×{gap.multiplier.toFixed(1)}</span>
+            </dd>
+          </div>
+        </dl>
+        <p className="mt-4 text-sm font-bold text-muted">
+          Use headphones so {npcName} can&apos;t hear themself. Suspicion hits 100 and you&apos;re caught.
+        </p>
+        {error && <p className="mt-3 rounded-2xl bg-red/10 px-4 py-3 text-sm font-bold text-red">{error}</p>}
+        <div className="mt-5 flex gap-3">
+          <Button variant="ghost" onClick={onBack}>
+            ← Edit cover
+          </Button>
+          <Button className="flex-1" onClick={onStart}>
+            🎙️ Start talking
+          </Button>
+        </div>
+        <FictionNote className="mt-4" />
+      </Card>
+    </div>
+  );
 }

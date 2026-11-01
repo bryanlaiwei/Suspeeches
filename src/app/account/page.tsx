@@ -1,38 +1,29 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { RequireAuth } from "@/components/Auth";
-import { AppShell } from "@/components/Shells";
-import { Btn, Card, Face, Input, Label, Textarea } from "@/components/ui";
+import { Button, Card, Face, FictionNote, Input, Label, Shell, Textarea } from "@/components/ui";
 import { fetchProfile, storeProfile } from "@/lib/client/profileStore";
-import { loadSetupDraft } from "@/lib/client/storage";
-import { supabase } from "@/lib/client/supabase";
-import { fmtTime } from "@/lib/context";
-import { PLAYER_ART } from "@/lib/presets";
+import { PRESETS } from "@/lib/presets";
 import { ProfileSchema } from "@/lib/schemas";
 
 interface Form {
   name: string;
+  email: string;
   role: string;
   skills: string;
   yearsExperience: string;
   education: string;
   facts: string;
 }
-const EMPTY: Form = { name: "", role: "", skills: "", yearsExperience: "", education: "", facts: "" };
 
-/** Profile: the REAL you (only the judge sees it) + your past calls. */
-export default function AccountPage() {
+const EMPTY: Form = { name: "", email: "", role: "", skills: "", yearsExperience: "", education: "", facts: "" };
+
+export default function ProfilePage() {
   return (
     <RequireAuth>
-      <AppShell>
-        <div className="mx-auto w-full max-w-3xl pt-4">
-          <ProfileForm />
-          <PastCalls />
-        </div>
-      </AppShell>
+      <ProfileForm />
     </RequireAuth>
   );
 }
@@ -41,150 +32,133 @@ function ProfileForm() {
   const router = useRouter();
   const [form, setForm] = useState<Form>(EMPTY);
   const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState<"new" | "saved" | "dirty">("new");
+  const [saved, setSaved] = useState(false);
+  const [demoSus, setDemoSus] = useState(20);
 
   useEffect(() => {
     void fetchProfile().then((p) => {
       if (!p) return;
       setForm({
         name: p.name,
+        email: p.email ?? "",
         role: p.role,
         skills: p.skills.join(", "),
         yearsExperience: String(p.yearsExperience),
         education: p.education,
         facts: p.facts.join("\n"),
       });
-      setSaved("saved");
+      setSaved(true);
     });
+    const id = setInterval(() => setDemoSus((s) => (s >= 90 ? 10 : s + 8)), 900);
+    return () => clearInterval(id);
   }, []);
 
   const set = (k: keyof Form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setForm((f) => ({ ...f, [k]: e.target.value }));
-    setSaved((s) => (s === "new" ? "new" : "dirty"));
+    setSaved(false);
   };
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    const first = saved === "new";
     const parsed = ProfileSchema.safeParse({
       name: form.name,
+      email: form.email,
       role: form.role,
       skills: form.skills.split(",").map((s) => s.trim()).filter(Boolean),
       yearsExperience: Number(form.yearsExperience) || 0,
       education: form.education,
       facts: form.facts.split("\n").map((s) => s.trim()).filter(Boolean),
     });
-    if (!parsed.success) return setError("Give us at least your name. The judge needs something to work with.");
+    if (!parsed.success) {
+      setError(parsed.error.issues[0]?.message ?? "Check the form");
+      return;
+    }
     try {
       await storeProfile(parsed.data);
     } catch (err) {
-      return setError(err instanceof Error ? err.message : String(err));
+      setError(err instanceof Error ? err.message : String(err));
+      return;
     }
-    setError(null);
-    setSaved("saved");
-    if (first) router.push(loadSetupDraft()?.cover ? "/home" : "/cover");
+    router.push("/setup");
   }
 
   return (
-    <>
-      <div className="flex items-center gap-5">
-        <Face art={PLAYER_ART} expression="happy" size={96} />
-        <div>
-          <h1 className="text-4xl font-black leading-tight">The real you</h1>
-          <p className="font-bold text-muted">
-            Only the hidden judge sees this, never the characters. It&apos;s how they know when you&apos;re stretching the truth. 🕵️
+    <Shell>
+      <div className="grid flex-1 items-start gap-8 lg:grid-cols-[1fr_1.1fr]">
+        <div className="pt-4 lg:pt-10">
+          <p className="mb-3 inline-block rounded-full border border-sus/40 bg-sus/10 px-3 py-1 text-xs font-semibold tracking-wide text-sus">
+            A voice game for LarpHacks
           </p>
-        </div>
-      </div>
-      <Card className="mt-6">
-        <form onSubmit={submit} className="grid gap-5 sm:grid-cols-2">
-          <label className="block">
-            <Label>Name</Label>
-            <Input value={form.name} onChange={set("name")} placeholder="Alex Rivera" required />
-          </label>
-          <label className="block">
-            <Label>What you actually do</Label>
-            <Input value={form.role} onChange={set("role")} placeholder="Junior backend developer" />
-          </label>
-          <label className="block">
-            <Label>Years of experience</Label>
-            <Input type="number" min={0} max={60} value={form.yearsExperience} onChange={set("yearsExperience")} placeholder="2" />
-          </label>
-          <label className="block">
-            <Label>Education</Label>
-            <Input value={form.education} onChange={set("education")} placeholder="BS Computer Science" />
-          </label>
-          <label className="block sm:col-span-2">
-            <Label hint="comma separated">Real skills</Label>
-            <Input value={form.skills} onChange={set("skills")} placeholder="Python, Flask, SQL" />
-          </label>
-          <label className="block sm:col-span-2">
-            <Label hint="one per line">Honest facts</Label>
-            <Textarea rows={3} value={form.facts} onChange={set("facts")} placeholder={"Never worked on frontend\nHas never managed anyone"} />
-          </label>
-          {error && <p className="rounded-2xl bg-red/10 px-4 py-3 text-sm font-bold text-red sm:col-span-2">{error}</p>}
-          <div className="flex items-center justify-end gap-4 sm:col-span-2">
-            <span className="text-sm font-bold text-muted">{saved === "saved" ? "Saved ✓" : saved === "dirty" ? "Unsaved changes" : ""}</span>
-            <Btn type="submit">{saved === "new" ? "Save and build my cover →" : "Save"}</Btn>
+          <h1 className="text-5xl font-black leading-[1.02] tracking-tight sm:text-6xl">
+            Don&apos;t give
+            <br />
+            yourself <span className="text-sus">away.</span>
+          </h1>
+          <p className="mt-5 max-w-md text-lg text-muted">
+            Pick a cover story. Talk your way through a conversation with an AI character who only knows your
+            claims. A hidden judge knows the truth, and the bar above their head is watching.
+          </p>
+          <div className="mt-8 flex items-end gap-6">
+            <div className="relative w-44">
+              <div className="mb-2 h-2 overflow-hidden rounded-full bg-bg">
+                <div
+                  className="h-full rounded-full transition-all duration-700"
+                  style={{
+                    width: `${demoSus}%`,
+                    background: demoSus > 70 ? "var(--sus)" : demoSus > 40 ? "var(--warn)" : "var(--clean)",
+                  }}
+                />
+              </div>
+              <Face art={PRESETS[0].art} suspicion={demoSus} size={176} />
+            </div>
+            <ol className="space-y-2 pb-4 text-sm text-ink/80">
+              <li>1. Tell us who you really are</li>
+              <li>2. Pick what you&apos;ll fake</li>
+              <li>3. Talk. Out loud.</li>
+              <li>4. Get the debrief</li>
+            </ol>
           </div>
-        </form>
-      </Card>
-    </>
-  );
-}
+        </div>
 
-interface GameRow {
-  id: string;
-  scenario_name: string;
-  alias: string;
-  outcome: string;
-  end_reason: string;
-  score: number;
-  final_suspicion: number;
-  duration_sec: number;
-  created_at: string;
-}
-
-function PastCalls() {
-  const [games, setGames] = useState<GameRow[] | null>(null);
-  useEffect(() => {
-    void supabase()
-      ?.from("games")
-      .select("id, scenario_name, alias, outcome, end_reason, score, final_suspicion, duration_sec, created_at")
-      .order("created_at", { ascending: false })
-      .limit(30)
-      .then(({ data }) => setGames((data ?? []) as GameRow[]));
-  }, []);
-  if (!games?.length) return null;
-  return (
-    <section className="mt-12">
-      <h2 className="text-2xl font-black">Your past calls</h2>
-      <ul className="mt-4 space-y-3">
-        {games.map((g) => {
-          const caught = g.outcome === "caught";
-          return (
-            <li key={g.id}>
-              <Link
-                href={`/debrief?id=${g.id}`}
-                className="flex items-center gap-4 rounded-3xl border-2 border-lav-2 bg-white px-5 py-4 shadow-[0_4px_0_var(--lav-2)] transition hover:bg-panel-2"
-              >
-                <span className={`w-28 font-black ${caught ? "text-red" : "text-green"}`}>
-                  {caught ? "BUSTED" : g.end_reason === "left" ? "HUNG UP" : "GOT AWAY"}
-                </span>
-                <span className="flex-1">
-                  <span className="block font-black">
-                    {g.alias} vs {g.scenario_name}
-                  </span>
-                  <span className="block text-xs font-bold text-muted">
-                    {new Date(g.created_at).toLocaleString()} · {fmtTime(g.duration_sec)} · {g.final_suspicion}% sus
-                  </span>
-                </span>
-                <span className="text-2xl font-black tabular-nums">{g.score.toLocaleString()}</span>
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
-    </section>
+        <Card className="lg:mt-6">
+          <h2 className="text-lg font-bold">Your real profile</h2>
+          <p className="mb-5 text-sm text-muted">
+            Fill this in once. Only the hidden judge sees it, never the characters. You can edit it any time from Profile in the top bar.
+          </p>
+          <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
+            <label className="block sm:col-span-2">
+              <Label>Name</Label>
+              <Input value={form.name} onChange={set("name")} placeholder="Sam Rivera" required />
+            </label>
+            <label className="block">
+              <Label>Current role</Label>
+              <Input value={form.role} onChange={set("role")} placeholder="Barista, design student" />
+            </label>
+            <label className="block">
+              <Label>Years of experience</Label>
+              <Input type="number" min={0} max={60} value={form.yearsExperience} onChange={set("yearsExperience")} placeholder="3" />
+            </label>
+            <label className="block sm:col-span-2">
+              <Label hint="comma separated">Skills</Label>
+              <Input value={form.skills} onChange={set("skills")} placeholder="latte art, Figma, customer service" />
+            </label>
+            <label className="block sm:col-span-2">
+              <Label>Education</Label>
+              <Input value={form.education} onChange={set("education")} placeholder="Second-year BFA in Graphic Design" />
+            </label>
+            <label className="block sm:col-span-2">
+              <Label hint="one per line">A few facts about you</Label>
+              <Textarea rows={3} value={form.facts} onChange={set("facts")} placeholder={"Run the weekend shift at a busy café\nBuilt two small Squarespace sites"} />
+            </label>
+            {error && <p className="text-sm text-sus sm:col-span-2">{error}</p>}
+            <div className="flex items-center justify-between gap-3 sm:col-span-2">
+              <span className="text-xs text-muted">{saved ? "Saved to your account" : ""}</span>
+              <Button type="submit">{saved ? "Save and play →" : "Save profile and play →"}</Button>
+            </div>
+          </form>
+          <FictionNote className="mt-5" />
+        </Card>
+      </div>
+    </Shell>
   );
 }

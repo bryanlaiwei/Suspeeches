@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, TextareaHTMLAttributes } from "react";
 import type { Art } from "@/lib/presets";
+import { UserMenu } from "./Auth";
 
 export function cx(...parts: (string | false | null | undefined)[]) {
   return parts.filter(Boolean).join(" ");
@@ -136,6 +137,52 @@ export function BtnLink({
     <Link href={href} className={cx(BTN_BASE, BTN_SIZE[size], TONES[tone], className)}>
       {children}
     </Link>
+  );
+}
+
+/** Classic button API used across the pages, drawn as a 3D Btn. */
+export function Button({
+  variant = "primary",
+  ...props
+}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "ghost" | "danger" | "subtle" }) {
+  const tone = ({ primary: "green", ghost: "white", danger: "red", subtle: "ghost" } as const)[variant];
+  return <Btn tone={tone} size={variant === "subtle" ? "sm" : "md"} {...props} />;
+}
+
+/** Page frame: logo, step pills and the account menu on top. */
+export function Shell({ children, step }: { children: ReactNode; step?: 1 | 2 | 3 }) {
+  const steps = ["Cover story", "Scene", "Debrief"];
+  return (
+    <div className="flex min-h-screen flex-1 flex-col">
+      <header className="border-b-2 border-lav-2 bg-white">
+        <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
+          <Logo />
+          <div className="flex items-center gap-5">
+            {step && (
+              <ol className="hidden items-center gap-2 text-xs font-black uppercase tracking-widest sm:flex">
+                {steps.map((label, i) => (
+                  <li
+                    key={label}
+                    className={cx(
+                      "rounded-xl border-2 px-3 py-1.5",
+                      i + 1 === step
+                        ? "border-blue bg-blue-soft text-blue"
+                        : i + 1 < step
+                          ? "border-green bg-green-soft text-green"
+                          : "border-lav-2 text-muted",
+                    )}
+                  >
+                    {i + 1}. {label}
+                  </li>
+                ))}
+              </ol>
+            )}
+            <UserMenu />
+          </div>
+        </div>
+      </header>
+      <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col px-4 pb-16 pt-8 sm:px-6">{children}</div>
+    </div>
   );
 }
 

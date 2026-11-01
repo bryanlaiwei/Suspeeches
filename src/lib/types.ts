@@ -99,9 +99,7 @@ export interface Debrief {
   larpGap: number; // 0..100
   gapMultiplier: number;
   score: number;
-  /** 0-100, how well you held up (shown big on the results screen). */
-  larpScore: number;
-  scoreBreakdown: { survival: number; gapMultiplier: number; lowSuspicionBonus: number; moodMultiplier?: number };
+  scoreBreakdown: { survival: number; gapMultiplier: number; lowSuspicionBonus: number };
   durationSec: number;
 }
 
@@ -112,8 +110,6 @@ export interface PublicSessionState {
   endReason: EndReason | null;
   /** Overall suspicion: in group scenes, the most suspicious character's bar. */
   suspicion: number;
-  /** Where every bar started (depends on the character's mood). */
-  startSuspicion: number;
   /** Group scenes: each character's bar (null for 1-on-1). */
   suspicionBy: Record<string, number> | null;
   /** Group scenes: the character whose bar hit 100. */

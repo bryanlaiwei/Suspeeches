@@ -1,14 +1,7 @@
-import type { CallMood, JudgeRaw } from "./schemas";
+import type { JudgeRaw } from "./schemas";
 import type { EndReason, JudgeResult } from "./types";
 
 export const START_SUSPICION = 20;
-
-/** The character's mood going in: where suspicion starts, how hard doubt lands, and the score bonus. */
-export const CALL_MOODS = {
-  chill: { start: 10, doubt: 0.8, scoreMultiplier: 0.85, label: "Chill", note: "You are in a relaxed, generous mood and give people the benefit of the doubt, at least at first." },
-  sharp: { start: 20, doubt: 1, scoreMultiplier: 1, label: "Sharp", note: "You are alert and professional: friendly, but you notice details." },
-  paranoid: { start: 30, doubt: 1.25, scoreMultiplier: 1.3, label: "Paranoid", note: "You are wary today and half expect people to exaggerate; you double-check everything." },
-} as const satisfies Record<CallMood, { start: number; doubt: number; scoreMultiplier: number; label: string; note: string }>;
 export const CAUGHT_AT = 100;
 export const DELTA_MIN = -15;
 export const DELTA_MAX = 25;
@@ -54,19 +47,12 @@ export interface ScoreHistory {
  * 2. Streaks: each previous bad answer in a row adds +2, each good one in a row adds -2 (max 3).
  * 3. Redemption: a good answer straight after a spike also clears 40% of that spike.
  */
-export function appliedDelta(
-  judgeDelta: number,
-  gapScore: number,
-  h: ScoreHistory,
-  /** Mood multiplier on doubt (chill 0.8, sharp 1, paranoid 1.25). */
-  doubt = 1,
-): { delta: number; notes: string[] } {
-  const d = clampDelta(judgeDelta) * (judgeDelta > 0 ? doubt : 1);
+export function appliedDelta(judgeDelta: number, gapScore: number, h: ScoreHistory): { delta: number; notes: string[] } {
+  const d = clampDelta(judgeDelta);
   const gapFactor = 1 + clamp(gapScore, 0, 100) / 150;
   const notes: string[] = [];
   let out = d * gapFactor;
   if (d !== 0 && gapFactor > 1.05) notes.push(`×${gapFactor.toFixed(2)} larp gap`);
-  if (judgeDelta > 0 && doubt !== 1) notes.push(`×${doubt} ${doubt > 1 ? "paranoid" : "chill"} mood`);
 
   if (d > 0 && h.badStreak > 0) {
     const extra = STREAK_STEP * Math.min(h.badStreak, 3);
@@ -134,7 +120,6 @@ export function finalScore(opts: {
   timeLimitSec: number;
   gapMultiplier: number;
   averageSuspicion: number;
-  moodMultiplier?: number;
 }) {
   let survival: number;
   if (opts.caught) {
@@ -146,11 +131,8 @@ export function finalScore(opts: {
     survival = 1000;
   }
   const lowSuspicionBonus = Math.round((1 + (100 - clamp(opts.averageSuspicion, 0, 100)) / 100) * 100) / 100;
-  const moodMultiplier = opts.moodMultiplier ?? 1;
-  const score = Math.round(survival * opts.gapMultiplier * lowSuspicionBonus * moodMultiplier);
-  // 0-100 "larp score" for the results screen: how well you held up, ignoring the gap/mood bonuses.
-  const larpScore = Math.round(clamp((survival / 1000) * (lowSuspicionBonus / 2) * 100, 0, 100));
-  return { score, larpScore, breakdown: { survival, gapMultiplier: opts.gapMultiplier, lowSuspicionBonus, moodMultiplier } };
+  const score = Math.round(survival * opts.gapMultiplier * lowSuspicionBonus);
+  return { score, breakdown: { survival, gapMultiplier: opts.gapMultiplier, lowSuspicionBonus } };
 }
 
 /* ---------- silence ---------- */

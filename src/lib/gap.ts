@@ -46,7 +46,6 @@ export async function suggestClaims(profile: Profile, scenarioId: ScenarioId, ex
       real_profile: formatProfile(profile),
       scene: formatScene({
         scenarioId,
-        mood: "sharp",
         alias: profile.name,
         claims: ["-"],
         goal: preset.defaultGoal,

@@ -20,8 +20,6 @@ export const CustomCharacterSchema = z.object({
   name: z.string().trim().min(1).max(60),
   personality: z.string().trim().min(1).max(600),
   voiceId: z.string().trim().min(1).max(64),
-  /** Which avatar art they use (public/avatars/<art>). */
-  art: z.enum(["recruiter", "peer", "custom-male", "custom-female"]).default("custom-male"),
   setting: z.string().trim().max(300).default(""),
 });
 export type CustomCharacter = z.infer<typeof CustomCharacterSchema>;
@@ -50,13 +48,8 @@ export const GroupSchema = z
   });
 export type Group = z.infer<typeof GroupSchema>;
 
-/** The character's mood going into the call: sets starting suspicion and how fast it climbs. */
-export const CallMoodSchema = z.enum(["chill", "sharp", "paranoid"]);
-export type CallMood = z.infer<typeof CallMoodSchema>;
-
 export const SetupSchema = z.object({
   scenarioId: ScenarioIdSchema,
-  mood: CallMoodSchema.default("sharp"),
   custom: CustomCharacterSchema.optional(),
   group: GroupSchema.optional(),
   alias: z.string().trim().min(1).max(80),

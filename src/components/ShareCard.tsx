@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { START_SUSPICION } from "@/lib/scoring";
 import type { PublicSessionState } from "@/lib/types";
 import { Btn } from "./ui";
 
@@ -84,8 +85,8 @@ function draw(canvas: HTMLCanvasElement, s: PublicSessionState) {
   c.strokeStyle = accent;
   c.lineWidth = 4;
   c.beginPath();
-  c.moveTo(px(0), py(s.startSuspicion ?? 20));
-  let prev = s.startSuspicion ?? 20;
+  c.moveTo(px(0), py(START_SUSPICION));
+  let prev = START_SUSPICION;
   for (const e of s.events) {
     c.lineTo(px(e.tSec), py(prev));
     c.lineTo(px(e.tSec), py(e.suspicion));
