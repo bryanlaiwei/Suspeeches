@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { RequireAuth, SignOutButton } from "@/components/Auth";
 import { Avatar } from "@/components/Avatar";
+import { HeadStatus } from "@/components/CallScreen";
 import { GameHistory } from "@/components/GameHistory";
 import { Button, Card, ERROR_NOTE, FictionNote, Input, Label, Shell, Textarea } from "@/components/ui";
 import { api } from "@/lib/client/api";
@@ -109,26 +110,34 @@ function ProfileForm() {
           </h1>
           <p className="mt-5 max-w-md text-lg font-bold text-muted">
             Pick a cover story. Talk your way through a conversation with an AI character who only knows your
-            claims. A hidden judge knows the truth, and the bar above their head is watching.
+            claims.<span className="hidden sm:inline"> A hidden judge knows the truth, and the bar above their head is watching.</span>
           </p>
-          <div className="mt-8 flex items-end gap-6">
-            <div className="relative w-44">
-              <div className="mb-2 h-2.5 overflow-hidden rounded-full bg-white shadow-[inset_0_0_0_2px_var(--lav-2)]">
-                <div
-                  className="h-full rounded-full transition-all duration-700"
-                  style={{
-                    width: `${demoSus}%`,
-                    background: demoSus > 70 ? "var(--red)" : demoSus > 40 ? "var(--yellow)" : "var(--green)",
-                  }}
-                />
-              </div>
-              <Avatar palette={PRESETS[0]} suspicion={demoSus} getLevel={() => 0} className="w-44" />
+          <div className="mt-8 grid max-w-lg grid-cols-[112px_1fr] items-center gap-4 sm:grid-cols-[176px_1fr] sm:gap-6">
+            <div
+              className="flex flex-col items-center overflow-hidden rounded-3xl border-2 border-lav-2 pt-3 shadow-[0_5px_0_var(--lav-2)]"
+              style={{ background: `${PRESETS[0].accent}26` }}
+            >
+              <HeadStatus value={demoSus} barClass="w-12 sm:w-24" />
+              <Avatar palette={PRESETS[0]} suspicion={demoSus} getLevel={() => 0} className="mt-1 w-24 sm:w-36" />
             </div>
-            <ol className="space-y-2 pb-4 text-sm font-extrabold">
-              <li>1. Tell us who you really are</li>
-              <li>2. Pick what you&apos;ll fake</li>
-              <li>3. Talk. Out loud.</li>
-              <li>4. Get the debrief</li>
+            <ol className="space-y-2">
+              {[
+                ["Tell us who you really are", "Who you really are"],
+                ["Pick what you'll fake", "What you'll fake"],
+                ["Talk. Out loud.", "Talk out loud"],
+                ["Get the debrief", "Get the debrief"],
+              ].map(([wide, narrow], i) => (
+                <li
+                  key={wide}
+                  className="flex items-center gap-2.5 rounded-2xl border-2 border-lav-2 bg-white px-3 py-2 text-sm font-extrabold"
+                >
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-purple text-xs font-black text-white">
+                    {i + 1}
+                  </span>
+                  <span className="sm:hidden">{narrow}</span>
+                  <span className="hidden sm:inline">{wide}</span>
+                </li>
+              ))}
             </ol>
           </div>
         </div>

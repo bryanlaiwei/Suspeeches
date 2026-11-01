@@ -31,6 +31,45 @@ function NameTag({ children }: { children: React.ReactNode }) {
   );
 }
 
+/** Status chip + bar + percent that sits over a character's head (call page, profile demo). */
+export function HeadStatus({
+  value,
+  pop = null,
+  barClass = "w-28",
+  className = "",
+}: {
+  value: number;
+  pop?: { delta: number; key: number } | null;
+  barClass?: string;
+  className?: string;
+}) {
+  const v = Math.max(0, Math.min(100, Math.round(value)));
+  const st = STATUS[moodFor(v)];
+  return (
+    <div className={cx("flex flex-col items-center gap-1.5", className)}>
+      <span key={st.label} className={cx("animate-sus-pop rounded-full px-3 py-0.5 text-xs font-black", st.chip)}>
+        {st.label}
+      </span>
+      <div className="relative flex items-center gap-2">
+        <div className={cx("h-3 overflow-hidden rounded-full bg-white shadow-[inset_0_0_0_2px_var(--lav-2)]", barClass)}>
+          <div className="h-full rounded-full transition-all duration-500" style={{ width: `${v}%`, background: st.bar }} />
+        </div>
+        <span className={cx("w-10 text-sm font-black tabular-nums", st.text)}>{v}%</span>
+        {pop && pop.delta !== 0 && (
+          <span
+            key={pop.key}
+            className="animate-sus-float absolute -right-6 -top-4 text-base font-black"
+            style={{ color: pop.delta > 0 ? "var(--red)" : "var(--green)" }}
+          >
+            {pop.delta > 0 ? "+" : ""}
+            {pop.delta}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /** One character's video tile: status + bar over their head, their face, a name tag. */
 function PersonTile({
   member,
@@ -49,30 +88,9 @@ function PersonTile({
 }) {
   const shown = useAnimatedNumber(suspicion, 5);
   const v = Math.max(0, Math.min(100, Math.round(shown)));
-  const st = STATUS[moodFor(v)];
   return (
     <div className={cx(TILE, talking ? TILE_TALKING : TILE_IDLE)} style={{ background: `${member.accent}26` }}>
-      <div className="z-10 flex flex-col items-center gap-1.5 pt-3">
-        <span key={st.label} className={cx("animate-sus-pop rounded-full px-3 py-0.5 text-xs font-black", st.chip)}>
-          {st.label}
-        </span>
-        <div className="relative flex items-center gap-2">
-          <div className={cx("h-3 overflow-hidden rounded-full bg-white shadow-[inset_0_0_0_2px_var(--lav-2)]", big ? "w-40" : "w-28")}>
-            <div className="h-full rounded-full transition-all duration-500" style={{ width: `${v}%`, background: st.bar }} />
-          </div>
-          <span className={cx("w-10 text-sm font-black tabular-nums", st.text)}>{v}%</span>
-          {pop && pop.delta !== 0 && (
-            <span
-              key={pop.key}
-              className="animate-sus-float absolute -right-6 -top-4 text-base font-black"
-              style={{ color: pop.delta > 0 ? "var(--red)" : "var(--green)" }}
-            >
-              {pop.delta > 0 ? "+" : ""}
-              {pop.delta}
-            </span>
-          )}
-        </div>
-      </div>
+      <HeadStatus value={v} pop={pop} barClass={big ? "w-40" : "w-28"} className="z-10 pt-3" />
       <div className="relative min-h-0 w-full flex-1">
         <Avatar palette={member} suspicion={shown} getLevel={getLevel} className="absolute inset-x-0 bottom-0 mx-auto h-full w-auto" />
       </div>
