@@ -102,9 +102,6 @@ function ProfileForm() {
     <Shell>
       <div className="grid flex-1 items-start gap-8 lg:grid-cols-[1fr_1.1fr]">
         <div className="pt-4 lg:pt-10">
-          <p className="mb-3 inline-block rounded-full bg-[#ffd6d6] px-3 py-1 text-xs font-extrabold tracking-wide text-[#a32d2d]">
-            A voice game for LarpHacks
-          </p>
           <h1 className="text-5xl font-black leading-[1.02] tracking-tight sm:text-6xl">
             Don&apos;t give
             <br />
