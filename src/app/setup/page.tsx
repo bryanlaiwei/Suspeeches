@@ -375,9 +375,6 @@ function SetupPageInner() {
                   />
                 </div>
                 <p className="text-sm text-ink/80">{gap.rationale}</p>
-                {gap.hardestClaims.length > 0 && (
-                  <p className="mt-2 text-xs text-muted">Hardest to defend: {gap.hardestClaims.join(" · ")}</p>
-                )}
                 {!gapFresh && <p className="mt-2 text-xs text-warn">Claims changed. Re-estimate before you start.</p>}
               </div>
             ) : (

@@ -22,7 +22,7 @@ Score gap_score from 0 to 100:
 - 41-70: a different specialty, seniority level or industry; needs real invented detail.
 - 71-100: a different life (a surgeon claiming to be a pilot); constant invention under pressure.
 
-rationale: one or two sentences, second person, naming what makes it hard.
+rationale: two short sentences, 40 words at most, second person. First, who you really are against the biggest thing you have to invent; then why that is hard to keep up. Summarize the claims, do not list them all.
 hardest_claims: up to 3 claims (copied verbatim) that will be hardest to defend.
 
 Return only the JSON object.
