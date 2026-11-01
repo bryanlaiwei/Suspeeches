@@ -45,11 +45,11 @@ export const PRESETS: ScenarioPreset[] = [
 /** Group scenes: one ElevenLabs agent voices several characters (multi-voice). */
 export const PARTY_PRESET: ScenarioPreset = {
   id: "party",
-  label: "Launch party (group)",
+  label: "Startup interview (panel)",
   character: "Maya, Theo & Jordan",
-  title: "Three guests at a startup launch party",
-  blurb: "A CTO, an investor and a nosy designer, all sizing you up at once.",
-  defaultGoal: "Get the group to invite you to the founders' after-party.",
+  title: "Interview panel at Lumen",
+  blurb: "A CTO, a CEO and a design lead interview you at once. Three people, one cover story.",
+  defaultGoal: "Get an offer to join Lumen.",
   skin: "#f1c7a5",
   hair: "#1d1410",
   accent: "#f59f00",
@@ -83,9 +83,9 @@ export interface CastMember {
 }
 
 export const PARTY_CAST: CastMember[] = [
-  { name: "Maya", title: "CTO, hosting the party", label: "Maya", expertise: "software engineering, system design, infrastructure, engineering teams and hiring", skin: "#f1c7a5", hair: "#1d1410", accent: "#f59f00", hairStyle: "bun" },
-  { name: "Theo", title: "Seed investor", label: "Theo", expertise: "startup investing, fundraising, valuations, revenue and growth metrics, go-to-market", skin: "#e8b796", hair: "#8a6a4a", accent: "#7c5cff", hairStyle: "short" },
-  { name: "Jordan", title: "Product designer", label: "Jordan", expertise: "product and visual design, UX research, branding, design tools, creative agencies", skin: "#8d5a3b", hair: "#151515", accent: "#e64980", hairStyle: "curly" },
+  { name: "Maya", title: "CTO", label: "Maya", expertise: "software engineering, system design, infrastructure, engineering teams and hiring", skin: "#f1c7a5", hair: "#1d1410", accent: "#f59f00", hairStyle: "bun" },
+  { name: "Theo", title: "CEO & co-founder", label: "Theo", expertise: "business impact, revenue and growth metrics, fundraising, company culture, go-to-market", skin: "#e8b796", hair: "#8a6a4a", accent: "#7c5cff", hairStyle: "short" },
+  { name: "Jordan", title: "Head of design", label: "Jordan", expertise: "product and visual design, UX research, design systems, design tools, design-engineering handoff", skin: "#8d5a3b", hair: "#151515", accent: "#e64980", hairStyle: "curly" },
 ];
 
 const GROUP_LOOKS: Pick<CastMember, "skin" | "hair" | "accent" | "hairStyle">[] = [
