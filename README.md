@@ -1,0 +1,99 @@
+# Sus
+
+**Don't give yourself away.** A voice game for LarpHacks: you store your real profile, pick a cover story, then talk out loud to an AI character who only knows your claims. A hidden judge scores every turn, the suspicion bar above the character's head moves live, and at 100 you're caught. Survive the clock (or get the character to wrap up happy) and you get a debrief, a score and a share card.
+
+> All characters are fictional. Sus is for practice and entertainment only.
+
+See [PLAN.md](PLAN.md) for the architecture and build order.
+
+## How it works
+
+| Role | Runs on | Knows |
+| --- | --- | --- |
+| **NPC** (Dana the recruiter, Rico the bartender, Priya the founder, or your custom character) | An ElevenLabs agent: its own speech-to-text, LLM and voice | Its character sheet + your cover story (passed as dynamic variables). Never your real profile. |
+| **Judge** | Anthropic `JUDGE_MODEL`, after every user turn, in parallel with the NPC | Real profile, cover story, transcript, timing signals |
+| **Gap estimator** | Anthropic `GAP_MODEL`, before the scene | Real profile + cover story → difficulty multiplier ×1.0–3.0 |
+| **Summarizer** | Anthropic `SUMMARY_MODEL`, once at the end | Everything → debrief JSON |
+
+* The judge returns strict JSON (`delta`, `reasons`, `categories`, `claims_status`, `next_probe`). The server validates it with zod, clamps `delta` to [-15, 25], and retries once on invalid output; if both tries fail, the turn counts as neutral so the scene keeps going.
+* Delivery signals come from the transcript and client timestamps, not audio: response latency (NPC stops talking → voice activity starts), speaking time, words per minute, filler-word rate.
+* The judge's `next_probe` goes to the NPC with ElevenLabs `sendContextualUpdate`, which adds context without triggering a reply. The NPC is told to use these notes silently and never to mention scores.
+* Score = survival (1000 survived, 500 walked out, 0–250 caught based on time held) × gap multiplier × low-suspicion bonus (1 + (100 − average suspicion)/100).
+
+## Run locally
+
+Requires Node 20+ (22 recommended).
+
+```bash
+npm install
+cp .env.example .env.local   # fill in keys
+npm run dev                  # http://localhost:3000
+```
+
+Without keys, `npm run dev` falls back to **mock mode** (a development aid): heuristic judge, canned debrief, and a scripted NPC voiced by your browser's speech synthesis with a typed "dev input" instead of the mic. Force it with `MOCK_MODE=1`.
+
+### Create the ElevenLabs agents (once)
+
+```bash
+npm run agents:create              # creates all four agents
+npm run agents:create recruiter    # or just one
+```
+
+This reads `prompts/npc/*.md` and calls `POST /v1/convai/agents/create` for each scenario with: character sheet + shared rules as the system prompt (with `{{alias}}`, `{{cover_story}}`, `{{scene_goal}}`, `{{time_limit_minutes}}` dynamic variables), the voice and LLM from the file's frontmatter, the `end_call` system tool (so the NPC can end the scene when you've earned the goal), the client events the app listens to (`user_transcript`, `agent_response`, `vad_score`, …), and, for the custom agent only, the `tts.voice_id` override so players can pick a voice. It prints the `ELEVENLABS_AGENT_ID_*` lines to paste into `.env.local` and Render.
+
+The agents are private: the server mints a short-lived WebRTC conversation token per scene (`GET /v1/convai/conversation/token`), so the ElevenLabs key never reaches the browser.
+
+### Test the judge
+
+```bash
+npm run test:judge
+```
+
+Runs [a fixed transcript](scripts/fixtures/transcript.json) (a barista claiming to be a senior Go engineer) through the judge and checks: zod schema on every result, the delta clamp, suspicion bounds, claim mirroring, retry-once on invalid output, and the neutral fallback after two failures. Uses the real `JUDGE_MODEL` when `ANTHROPIC_API_KEY` is set, otherwise the mock judge.
+
+Other checks: `npm run typecheck`, `npm run lint`, `npm run build`.
+
+## Environment variables
+
+| Name | Required | Purpose |
+| --- | --- | --- |
+| `ANTHROPIC_API_KEY` | yes | Judge, gap estimator, claim suggester, summarizer |
+| `JUDGE_MODEL` | no (default `claude-haiku-5-5`) | Per-turn judge; keep it fast and cheap |
+| `GAP_MODEL` | no (default `claude-haiku-5-5`) | Larp-gap estimate and claim suggestions |
+| `SUMMARY_MODEL` | no (default `claude-opus-5-5`) | End-of-scene debrief |
+| `ELEVENLABS_API_KEY` | yes | Mint conversation tokens; create agents |
+| `ELEVENLABS_AGENT_ID_RECRUITER` | yes | Agent for the recruiter preset |
+| `ELEVENLABS_AGENT_ID_BARTENDER` | yes | Agent for the bar preset |
+| `ELEVENLABS_AGENT_ID_NETWORKING` | yes | Agent for the networking preset |
+| `ELEVENLABS_AGENT_ID_CUSTOM` | for custom scenes | Agent with the voice override enabled |
+| `AGENTBOXD_API_KEY` | no | Handler inbox emails (brief before, debrief after) |
+| `AGENTBOXD_HANDLER_CLIENT_ID` | no (default `sus-handler`) | Idempotent id for the handler inbox |
+| `PUBLIC_APP_URL` | no | Link in debrief emails (Render's `RENDER_EXTERNAL_URL` is used otherwise) |
+| `MOCK_MODE` | no | `1` forces canned responses (development only) |
+
+There is no NPC model variable: the NPC's LLM is chosen inside each ElevenLabs agent (`llm:` in `prompts/npc/*.md`, default `gemini-2.5-flash` for low voice latency).
+
+## Deploy on Render
+
+1. Push this repo to GitHub.
+2. In Render: **New → Blueprint**, pick the repo. `render.yaml` defines one Node web service (`npm ci && npm run build`, `npm start`, health check `/api/health`).
+3. Fill in the secrets Render prompts for (the `sync: false` vars above).
+4. Open `https://<service>.onrender.com/api/health` and check every integration shows `true`.
+
+Render serves HTTPS, which browsers require for microphone access. Sessions live in memory, so keep one instance; on the free plan the service sleeps when idle and in-flight scenes are lost (use the starter plan for demos).
+
+## Agentboxd handler
+
+If `AGENTBOXD_API_KEY` is set and the player gives an email and ticks the box on the setup screen, a "handler" inbox (created once with the official `agentboxd` client, idempotent on `AGENTBOXD_HANDLER_CLIENT_ID`) emails a cover-story brief when the scene starts and the debrief afterwards. It sits behind the `HandlerChannel` interface in [src/lib/handler.ts](src/lib/handler.ts) and never blocks the game: failures are logged and shown on the debrief page. Note Agentboxd's new-workspace send caps (20 per day for the first 3 days).
+
+## Layout
+
+```
+prompts/              versioned prompts: npc/*.v1.md (agent configs), judge, gap, suggest, summarizer
+scripts/              create-agents.ts, test-judge.ts, fixtures/
+src/lib/              env, schemas (zod), llm (structured call + retry), judge, gap, summarize,
+                      sessions (in-memory), scoring, timing, elevenlabs, handler, mock
+src/lib/client/       storage (localStorage), sound cues (WebAudio), api
+src/components/       Avatar, SuspicionBar, SceneRunner, Transcript, Timeline, ShareCard, ui
+src/app/              / (profile) · /setup · /scene · /debrief · /api/*
+```

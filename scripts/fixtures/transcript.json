@@ -1,0 +1,49 @@
+{
+  "profile": {
+    "name": "Sam Rivera",
+    "email": "",
+    "role": "Barista and part-time graphic design student",
+    "skills": ["latte art", "Figma", "customer service", "inventory"],
+    "yearsExperience": 3,
+    "education": "Second-year BFA in Graphic Design",
+    "facts": ["Runs the weekend shift at a busy café", "Has built two small websites in Squarespace"]
+  },
+  "setup": {
+    "scenarioId": "recruiter",
+    "alias": "Sam Rivera",
+    "claims": [
+      "I'm a senior backend engineer with 6 years of experience",
+      "I led our migration from a monolith to Kubernetes",
+      "I'm fluent in Go and Postgres"
+    ],
+    "goal": "Get Dana to move you forward to the hiring-manager round.",
+    "timeLimitSec": 300,
+    "emailHandler": false
+  },
+  "turns": [
+    { "role": "agent", "text": "Hi, is this Sam? Great, thanks for hopping on. Walk me through what you're doing right now." },
+    {
+      "role": "user",
+      "text": "Sure. I'm a senior backend engineer at a logistics startup, mostly Go services on top of Postgres, about six years in now.",
+      "timing": { "responseLatencyMs": 900, "speechMs": 7000 }
+    },
+    { "role": "agent", "text": "Nice. Tell me about the Kubernetes migration on your résumé. What did you own?" },
+    {
+      "role": "user",
+      "text": "Um, so, basically we, like, moved stuff to Kubernetes, you know, it was kind of a big project and I was sort of leading it I guess.",
+      "timing": { "responseLatencyMs": 5200, "speechMs": 9000 }
+    },
+    { "role": "agent", "text": "How many services did you move, and how did you handle database migrations during the cutover?" },
+    {
+      "role": "user",
+      "text": "We moved 14 services over two quarters. For Postgres we kept the database outside the cluster on RDS and used a strangler pattern, routing traffic per endpoint behind Envoy so we could roll back any single service.",
+      "timing": { "responseLatencyMs": 1100, "speechMs": 12000 }
+    },
+    { "role": "agent", "text": "What's your favourite Go concurrency pattern?" },
+    {
+      "role": "user",
+      "text": "Honestly I mostly use Python. Go is, uh, the one with the semicolons right?",
+      "timing": { "responseLatencyMs": 6400, "speechMs": 5000 }
+    }
+  ]
+}
