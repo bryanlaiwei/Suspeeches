@@ -147,7 +147,6 @@ export function CallStage({
   suspicion,
   suspicionBy,
   active,
-  caption,
   userTalking,
   remaining,
   pop,
@@ -167,8 +166,6 @@ export function CallStage({
   suspicion: number;
   suspicionBy: Record<string, number> | null;
   active: string | null;
-  /** Live caption: only the latest line on the call. */
-  caption: { speaker: string; text: string; you: boolean } | null;
   userTalking: boolean;
   remaining: number;
   /** Latest change: overall delta plus each character's own (groups). */
@@ -226,8 +223,8 @@ export function CallStage({
           <YouTile you={you} talking={userTalking} muted={!!muted} />
         </div>
 
-        {/* status + caption */}
-        <div className="mt-4 flex min-h-[64px] flex-col items-center justify-center gap-2">
+        {/* status only: no lines from the conversation are shown during the call */}
+        <div className="mt-4 flex min-h-[40px] flex-col items-center justify-center gap-2">
           {status && (
             <span
               className={cx(
@@ -239,16 +236,6 @@ export function CallStage({
             >
               {status.text}
             </span>
-          )}
-          {caption ? (
-            <p
-              key={caption.text}
-              className="animate-sus-pop max-w-3xl rounded-2xl bg-white px-5 py-2.5 text-center text-base font-extrabold shadow-[0_3px_0_var(--lav-2)]"
-            >
-              <span className={caption.you ? "text-green" : "text-purple"}>{caption.speaker}:</span> {caption.text}
-            </p>
-          ) : (
-            !status && <p className="text-sm font-bold text-muted">Your turn. Talk like you totally did all of that. 😎</p>
           )}
         </div>
 
@@ -288,7 +275,7 @@ export function CallStage({
 
 /* ---------- end of call ---------- */
 
-export function EndOverlay({ reason, npcName }: { reason: EndReason; npcName: string }) {
+export function EndOverlay({ reason, npcName, lastLine = null }: { reason: EndReason; npcName: string; lastLine?: string | null }) {
   const caught = reason === "caught";
   const title = caught ? "BUSTED!" : reason === "left" ? "YOU HUNG UP" : reason === "error" ? "CALL DROPPED" : "TIME'S UP!";
   const sub = caught
@@ -303,6 +290,11 @@ export function EndOverlay({ reason, npcName }: { reason: EndReason; npcName: st
       <div className="animate-sus-pop text-center">
         <div className={cx("font-display text-7xl font-extrabold tracking-tight sm:text-8xl", caught ? "text-red" : "text-lime")}>{title}</div>
         <p className="mt-3 text-xl font-extrabold text-white">{sub}</p>
+        {lastLine && (
+          <p className="mx-auto mt-5 max-w-xl rounded-2xl bg-white px-5 py-3 text-lg font-extrabold text-ink shadow-[0_4px_0_rgba(0,0,0,0.15)]">
+            <span className="text-purple">{npcName}:</span> &ldquo;{lastLine}&rdquo;
+          </p>
+        )}
         <p className="mt-6 text-sm font-bold text-white/70">Crunching the numbers…</p>
       </div>
     </div>

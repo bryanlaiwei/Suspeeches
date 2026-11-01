@@ -22,8 +22,10 @@ export function applyDelta(suspicion: number, delta: number): number {
 /* ---------- difficulty ---------- */
 
 /** Bounds on the suspicion change actually applied for one judged turn. */
-export const APPLIED_MIN = -20;
-export const APPLIED_MAX = 30;
+export const APPLIED_MIN = -50;
+export const APPLIED_MAX = 50;
+/** How sensitive the characters are: scales every judged change, up and down alike. */
+export const SENSITIVITY = 1.25;
 /** ±this per consecutive turn in the same direction (bad answers in a row, or good ones), max 3. */
 export const STREAK_STEP = 2;
 /** A good answer right after a spike clears up this share of that spike on top of its own credit. */
@@ -43,7 +45,7 @@ export interface ScoreHistory {
 /**
  * Turn the judge's delta (-15..25) into the change actually applied, symmetric for good and bad play:
  * 1. The larp gap scales both ways (×1.0 at gap 0, ×1.67 at gap 100): a bigger lie is more damning
- *    when it slips and more impressive when it holds.
+ *    when it slips and more impressive when it holds. SENSITIVITY scales on top, both ways.
  * 2. Streaks: each previous bad answer in a row adds +2, each good one in a row adds -2 (max 3).
  * 3. Redemption: a good answer straight after a spike also clears 40% of that spike.
  */
@@ -51,8 +53,8 @@ export function appliedDelta(judgeDelta: number, gapScore: number, h: ScoreHisto
   const d = clampDelta(judgeDelta);
   const gapFactor = 1 + clamp(gapScore, 0, 100) / 150;
   const notes: string[] = [];
-  let out = d * gapFactor;
-  if (d !== 0 && gapFactor > 1.05) notes.push(`×${gapFactor.toFixed(2)} larp gap`);
+  let out = d * gapFactor * SENSITIVITY;
+  if (d !== 0) notes.push(gapFactor > 1.05 ? `×${(gapFactor * SENSITIVITY).toFixed(2)} larp gap and sensitivity` : `×${SENSITIVITY} sensitivity`);
 
   if (d > 0 && h.badStreak > 0) {
     const extra = STREAK_STEP * Math.min(h.badStreak, 3);
@@ -70,8 +72,10 @@ export function appliedDelta(judgeDelta: number, gapScore: number, h: ScoreHisto
     notes.push(`−${back} cleared up the last doubt`);
   }
 
-  const delta = clamp(Math.round(out), APPLIED_MIN, APPLIED_MAX);
-  if (delta !== Math.round(out)) notes.push(`capped at ${delta > 0 ? "+" : ""}${delta}`);
+  // Round half away from zero so good and bad answers round the same way.
+  const rounded = Math.sign(out) * Math.round(Math.abs(out));
+  const delta = clamp(rounded, APPLIED_MIN, APPLIED_MAX);
+  if (delta !== rounded) notes.push(`capped at ${delta > 0 ? "+" : ""}${delta}`);
   return { delta, notes };
 }
 

@@ -57,14 +57,14 @@ async function unitChecks() {
   });
   await check("scoring: symmetric gap scaling, streaks both ways, redemption, bounds", () => {
     const fresh = { lastDelta: null, badStreak: 0, goodStreak: 0 };
-    assert.equal(appliedDelta(10, 0, fresh).delta, 10);
-    assert.equal(appliedDelta(10, 60, fresh).delta, 14);
-    assert.equal(appliedDelta(-10, 60, fresh).delta, -14);
-    assert.equal(appliedDelta(10, 60, { lastDelta: 14, badStreak: 2, goodStreak: 0 }).delta, 18);
-    assert.equal(appliedDelta(-6, 60, { lastDelta: -8, badStreak: 0, goodStreak: 1 }).delta, -10);
-    // redemption: -10 judge right after a +25 spike at gap 60 → -14 - 10 = -24 → capped at -20
-    assert.equal(appliedDelta(-10, 60, { lastDelta: 25, badStreak: 1, goodStreak: 0 }).delta, -20);
-    assert.equal(appliedDelta(25, 100, { lastDelta: 20, badStreak: 3, goodStreak: 0 }).delta, 30);
+    assert.equal(appliedDelta(10, 0, fresh).delta, 13);
+    assert.equal(appliedDelta(10, 60, fresh).delta, 18);
+    assert.equal(appliedDelta(-10, 60, fresh).delta, -18);
+    assert.equal(appliedDelta(10, 60, { lastDelta: 14, badStreak: 2, goodStreak: 0 }).delta, 22);
+    assert.equal(appliedDelta(-6, 60, { lastDelta: -8, badStreak: 0, goodStreak: 1 }).delta, -12);
+    // redemption: -10 judge right after a +25 spike at gap 60 → -17.5 - 10 = -27.5 → -28
+    assert.equal(appliedDelta(-10, 60, { lastDelta: 25, badStreak: 1, goodStreak: 0 }).delta, -28);
+    assert.equal(appliedDelta(25, 100, { lastDelta: 20, badStreak: 3, goodStreak: 0 }).delta, 50);
   });
   await check("group: every listener gets a clamped delta; missing ones fall back to the overall", () => {
     const raw = { ...validRaw, delta: 12, listeners: [{ name: "maya", delta: 40, reason: "Wrong jargon." }] };

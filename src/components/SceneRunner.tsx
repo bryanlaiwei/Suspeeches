@@ -53,7 +53,13 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
   const userSpeechStart = useRef<number | null>(null);
   const endingRef = useRef(false);
   /** Caught: the NPC is delivering its goodbye before hanging up. */
-  const bustedRef = useRef<{ agentSpoke: boolean; prompted: boolean; fallback: ReturnType<typeof setTimeout> } | null>(null);
+  const bustedRef = useRef<{
+    prompted: boolean;
+    goodbyeStarted: boolean;
+    /** Hang-up pending once the goodbye has gone quiet (cancelled if they keep talking). */
+    quiet: ReturnType<typeof setTimeout> | null;
+    fallback: ReturnType<typeof setTimeout>;
+  } | null>(null);
   const lineId = useRef(0);
   const voiceRef = useRef<VoiceConnection | null>(null);
   const mock = useRef({ level: 0, speaking: false, lineIdx: 0 });
@@ -90,6 +96,10 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
     },
     onModeChange: ({ mode }) => {
       npcSpeaking.current = mode === "speaking";
+      if (mode === "speaking" && bustedRef.current?.quiet) {
+        clearTimeout(bustedRef.current.quiet);
+        bustedRef.current.quiet = null;
+      }
       // Fallback until playback timings arrive (and for 1-on-1 scenes).
       if (mode === "speaking" && !speech.current.active) setActive(speech.current.segments[0]?.name ?? cast[0].name);
       if (mode === "listening") {
@@ -100,9 +110,12 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
         // eslint-disable-next-line react-hooks/purity -- SDK event callback, not render
         agentStoppedAt.current = performance.now();
         userSpeechStart.current = null;
-        // The NPC finished its goodbye line: the app hangs up (NPCs can't end calls).
-        if (bustedRef.current?.agentSpoke) setTimeout(() => void finish("caught"), 700);
-        else if (bustedRef.current) promptGoodbye();
+        // The NPC finished its goodbye: hang up once it has stayed quiet (group voices pause between parts).
+        const b = bustedRef.current;
+        if (b?.goodbyeStarted) {
+          if (b.quiet) clearTimeout(b.quiet);
+          b.quiet = setTimeout(() => void finish("caught"), 1500);
+        }
       }
     },
     onVadScore: ({ vadScore }) => {
@@ -190,8 +203,14 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
   function onAgentLine(text: string) {
     if (!sessionId.current || endingRef.current) return;
     const tSec = elapsed();
-    // Only the reply to the goodbye nudge counts as the goodbye (not a line already in flight).
-    if (bustedRef.current?.prompted) bustedRef.current.agentSpoke = true;
+    // The reply to the goodbye nudge: turn the sound back on and let it play out (generous cap).
+    const b = bustedRef.current;
+    if (b?.prompted && !b.goodbyeStarted) {
+      b.goodbyeStarted = true;
+      conversation.setVolume({ volume: 1 });
+      clearTimeout(b.fallback);
+      b.fallback = setTimeout(() => void finish("caught"), 15_000);
+    }
     // One transcript line per character (group responses contain several voice tags).
     for (const seg of speakerSegments(text)) {
       const speaker = isGroup ? seg.name : undefined;
@@ -226,7 +245,7 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
           ls.map((l) => (l.id === id ? { ...l, delta: judged.event.delta, turnIndex: judged.event.turnIndex, breakdown } : l)),
         );
         react(judged.event);
-        if (res.state.status === "caught") return bust(res.npcMood);
+        if (res.state.status === "caught") return bust(res.npcMood, res.state.caughtBy);
         tellNpc(res.npcMood);
         tellNpc(judged.npcHint);
       })
@@ -239,27 +258,29 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
   }
 
   /**
-   * Suspicion hit 100. The NPC gets a "you've decided, end it" note, says a cold goodbye and hangs up
-   * after their goodbye line; if no goodbye arrives within 15 s we hang up anyway.
+   * Suspicion hit 100. Whatever the NPC was saying is muted, it gets a "you've decided" note plus a
+   * nudge to answer now, says a funny closing line, and the app hangs up once it has gone quiet for
+   * 1.5 s (20 s cap if no goodbye ever comes).
    */
-  function bust(note: string | null | undefined) {
+  function bust(note: string | null | undefined, caughtBy?: string | null) {
     if (bustedRef.current || endingRef.current) return;
     if (voiceRef.current?.mode !== "elevenlabs" || !note) return void finish("caught");
     playCaught();
     setBusted(true);
-    bustedRef.current = { agentSpoke: false, prompted: false, fallback: setTimeout(() => void finish("caught"), 8_000) };
+    bustedRef.current = { prompted: false, goodbyeStarted: false, quiet: null, fallback: setTimeout(() => void finish("caught"), 20_000) };
     conversation.sendContextualUpdate(note);
-    // A contextual note never makes the NPC talk, so nudge a reply now (or once it finishes its current line).
-    if (!npcSpeaking.current) promptGoodbye();
-  }
-
-  /** Make the NPC answer right away; with the decision note in context, that answer is its goodbye. */
-  function promptGoodbye() {
+    // Whatever they were in the middle of (usually the next question) no longer matters: mute it and
+    // ask for the goodbye right away. A contextual note alone never makes the NPC talk.
+    if (npcSpeaking.current) conversation.setVolume({ volume: 0 });
+    const who = isGroup && caughtBy ? caughtBy : "you";
     const b = bustedRef.current;
-    if (!b || b.prompted || endingRef.current) return;
     b.prompted = true;
     try {
-      conversation.sendUserMessage("Okay.");
+      conversation.sendUserMessage(
+        isGroup && caughtBy
+          ? `(Stage direction, not part of the conversation: ${who} has made up their mind. Only ${who} speaks now: one or two short, dry, funny sentences in character about what didn't add up, then goodbye.)`
+          : "(Stage direction, not part of the conversation: you've made up your mind. Say your closing line now: one or two short, dry, funny sentences in character about what didn't add up, then goodbye.)",
+      );
     } catch {
       void finish("caught");
     }
@@ -294,7 +315,7 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
         setState(res.state);
         pushLine({ role: "system", text: `${res.event.quote} +${res.event.delta}`, tSec: res.event.tSec, turnIndex: res.event.turnIndex });
         react(res.event);
-        if (res.state.status === "caught") return bust(res.npcMood);
+        if (res.state.status === "caught") return bust(res.npcMood, res.state.caughtBy);
         tellNpc(res.npcMood);
       })
       .catch((e) => console.error("silence report failed", e));
@@ -322,7 +343,10 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
   async function finish(reason: EndReason) {
     if (endingRef.current) return;
     endingRef.current = true;
-    if (bustedRef.current) clearTimeout(bustedRef.current.fallback);
+    if (bustedRef.current) {
+      clearTimeout(bustedRef.current.fallback);
+      if (bustedRef.current.quiet) clearTimeout(bustedRef.current.quiet);
+    }
     setEnding(reason);
     setPhase("ended");
     const tSec = elapsed();
@@ -484,20 +508,11 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
   const npcTalking = voice?.mode === "elevenlabs" ? conversation.isSpeaking : !!activeSpeaker;
   const silenceWarning = phase === "live" && !busted && silentFor >= SILENCE_FIRST_SEC - 3;
 
-  // Only the latest line from each side is shown (no conversation history on screen).
-  const lastUser = [...lines].reverse().find((l) => l.role === "user") ?? null;
+  // No lines are shown during the call; the latest NPC line is only used for the "Busted" screen.
   const lastAgentAt = [...lines].reverse().find((l) => l.role === "agent")?.tSec;
   const agentBurst = lines.filter((l) => l.role === "agent" && l.tSec === lastAgentAt);
   const npcShown = agentBurst.find((l) => l.speaker && l.speaker === activeSpeaker) ?? agentBurst.at(-1) ?? null;
   const youSpeaking = userTalking && !npcTalking;
-  const userLatest = !!lastUser && (!npcShown || lastUser.id > npcShown.id);
-  const caption = youSpeaking
-    ? { speaker: "You", text: "…", you: true }
-    : userLatest && lastUser
-      ? { speaker: "You", text: lastUser.text, you: true }
-      : npcShown
-        ? { speaker: npcShown.speaker || cast[0].name, text: npcShown.text, you: false }
-        : null;
   const sceneLabel = presetFor(setup.scenarioId).label;
   const callTitle = isGroup ? sceneLabel : `${sceneLabel} · ${cast[0].name}`;
 
@@ -532,7 +547,6 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
         suspicion={suspicion}
         suspicionBy={state?.suspicionBy ?? null}
         active={npcTalking ? (isGroup ? activeSpeaker : cast[0].name) : null}
-        caption={caption}
         userTalking={youSpeaking}
         remaining={remaining}
         pop={lastDelta}
@@ -546,7 +560,13 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
           voice?.mode === "mock" && phase === "live" ? <MockInput onSend={(t) => onUserLine(t)} onTyping={markUserSpeaking} /> : null
         }
       />
-      {phase === "ended" && ending && <EndOverlay reason={ending} npcName={state?.caughtBy ?? cast[0].name} />}
+      {phase === "ended" && ending && (
+        <EndOverlay
+          reason={ending}
+          npcName={state?.caughtBy ?? cast[0].name}
+          lastLine={ending === "caught" ? (npcShown?.text ?? null) : null}
+        />
+      )}
     </>
   );
 }

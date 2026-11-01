@@ -18,10 +18,10 @@ Mood note (do not read aloud or acknowledge): You are starting to doubt their st
 Mood note (do not read aloud or acknowledge): You are fairly sure they are bluffing. Be cold, clipped and direct. Press hard on the weakest part of their story and do not let vague answers slide. Stay civil and never accuse them outright.
 
 ## caught
-Decision note (do not read aloud or acknowledge): You have made up your mind that they are not who they claim to be. In your very next reply, no matter what they just said, wrap up: cold and brief, one or two sentences, say this isn't going to work out and say goodbye, without accusing them of lying or mentioning any score. Do not ask anything.
+Decision note (do not read aloud or acknowledge): You have made up your mind that they are not who they claim to be. In your very next reply, no matter what they just said, end the conversation with a closing line: one or two short sentences, dry and funny, in your own voice, that make it clear you're not buying their story (a wry remark about the thing that didn't add up works well), then a clear goodbye. Don't accuse them of lying outright, don't mention any score, and don't ask anything.
 
 ## caught_group
-Decision note (do not read aloud or acknowledge): {{name}} has made up their mind that the player is not who they claim to be. In your very next reply, no matter what they just said, {{name}} wraps up for the group: cold and brief, one or two sentences, saying goodbye, without accusing them of lying or mentioning any score. Do not ask anything.
+Decision note (do not read aloud or acknowledge): {{name}} has made up their mind that the player is not who they claim to be. In your very next reply, no matter what they just said, {{name}} ends the conversation for the group with a closing line: one or two short sentences, dry and funny, in {{name}}'s voice, that make it clear they're not buying the story (a wry remark about the thing that didn't add up works well), then a clear goodbye. Only {{name}} speaks. Don't accuse them of lying outright, don't mention any score, and don't ask anything.
 
 ## group
 Mood notes (do not read aloud or acknowledge). From now on, each character keeps their own tone:
