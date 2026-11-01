@@ -1,7 +1,7 @@
 import type { JudgeRaw } from "./schemas";
 import type { EndReason, JudgeResult } from "./types";
 
-export const START_SUSPICION = 25;
+export const START_SUSPICION = 20;
 export const CAUGHT_AT = 100;
 export const DELTA_MIN = -15;
 export const DELTA_MAX = 25;
@@ -22,22 +22,22 @@ export function applyDelta(suspicion: number, delta: number): number {
 /* ---------- difficulty ---------- */
 
 /** Bounds on the suspicion change actually applied for one judged turn. */
-export const APPLIED_MIN = -10;
-export const APPLIED_MAX = 35;
+export const APPLIED_MIN = -12;
+export const APPLIED_MAX = 30;
 /** Trust rebuilds slower than doubt: good answers count for this fraction of the judge's delta. */
-export const TRUST_RATE = 0.7;
+export const TRUST_RATE = 0.85;
 /** Extra suspicion per consecutive suspicious turn (capped at 3 in a row). */
-export const STREAK_BONUS = 3;
+export const STREAK_BONUS = 2;
 
 /**
  * Turn the judge's delta (-15..25) into the change actually applied. Doubt is amplified by the
- * larp gap (×1.0 at gap 0, ×2.0 at gap 100) and by a streak of suspicious turns; trust is damped.
+ * larp gap (×1.0 at gap 0, ×1.67 at gap 100) and by a streak of suspicious turns; trust is damped.
  */
 export function appliedDelta(judgeDelta: number, gapScore: number, streak: number): number {
   const d = clampDelta(judgeDelta);
   const out =
     d > 0
-      ? d * (1 + clamp(gapScore, 0, 100) / 100) + STREAK_BONUS * Math.min(Math.max(streak, 0), 3)
+      ? d * (1 + clamp(gapScore, 0, 100) / 150) + STREAK_BONUS * Math.min(Math.max(streak, 0), 3)
       : d * TRUST_RATE;
   return clamp(Math.round(out), APPLIED_MIN, APPLIED_MAX);
 }

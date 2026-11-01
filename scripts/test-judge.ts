@@ -56,11 +56,11 @@ async function unitChecks() {
   });
   await check("difficulty: doubt scales with gap + streak, trust is damped, bounds hold", () => {
     assert.equal(appliedDelta(10, 0, 0), 10);
-    assert.equal(appliedDelta(10, 60, 0), 16);
-    assert.equal(appliedDelta(10, 60, 2), 22);
-    assert.equal(appliedDelta(25, 100, 3), 35);
-    assert.equal(appliedDelta(-10, 60, 0), -7);
-    assert.equal(appliedDelta(-15, 0, 0), -10);
+    assert.equal(appliedDelta(10, 60, 0), 14);
+    assert.equal(appliedDelta(10, 60, 2), 18);
+    assert.equal(appliedDelta(25, 100, 3), 30);
+    assert.equal(appliedDelta(-10, 60, 0), -8);
+    assert.equal(appliedDelta(-15, 0, 0), -12);
   });
   await check("suspicion never leaves [0, 100]", () => {
     assert.equal(applyDelta(95, 25), 100);
