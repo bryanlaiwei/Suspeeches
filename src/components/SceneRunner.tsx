@@ -14,7 +14,7 @@ import type { EndReason, PublicSessionState, SuspicionEvent, VoiceConnection } f
 import { CallStage, EndOverlay, MockInput } from "./CallScreen";
 import { fmtTime } from "@/lib/context";
 import { Avatar } from "./Avatar";
-import { Button, Card, cx, FictionNote, Shell } from "./ui";
+import { Button, Card, cx, ERROR_NOTE, FictionNote, Shell } from "./ui";
 import type { LiveLine } from "./Transcript";
 import { useAnimatedNumber } from "./useAnimatedNumber";
 
@@ -597,7 +597,7 @@ function Briefing({
             ? "The bar over each person's head shows how suspicious they are of you. The call ends when anyone hits 100% (you're caught) or the clock runs out (you made it)."
             : `The bar over ${cast[0].name}'s head shows how suspicious they are of you. The call ends when it hits 100% (you're caught) or the clock runs out (you made it).`}
         </p>
-        {error && <p className="mt-3 rounded-2xl bg-red/10 px-4 py-3 text-sm font-bold text-red">{error}</p>}
+        {error && <p className={cx(ERROR_NOTE, "mt-3")}>{error}</p>}
         <div className="mt-5 flex gap-3">
           <Button variant="ghost" onClick={onBack}>
             ← Edit cover

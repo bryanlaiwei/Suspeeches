@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Card } from "@/components/ui";
+import { Card, ERROR_NOTE } from "@/components/ui";
 import { supabase } from "@/lib/client/supabase";
 import { fmtTime } from "@/lib/context";
 
@@ -35,10 +35,10 @@ export function GameHistory() {
 
   return (
     <section>
-      {error && <p className="text-sm text-sus">{error}</p>}
-      {games === null && !error && <p className="text-sm text-muted">Loading…</p>}
+      {error && <p className={ERROR_NOTE}>{error}</p>}
+      {games === null && !error && <p className="text-sm font-bold text-muted">Loading…</p>}
       {games?.length === 0 && (
-        <Card className="text-center text-sm text-muted">No games yet. Your debriefs will show up here.</Card>
+        <Card className="text-center text-sm font-bold text-muted">No games yet. Your debriefs will show up here.</Card>
       )}
       <ul className="space-y-3">
         {games?.map((g) => {
@@ -47,18 +47,18 @@ export function GameHistory() {
             <li key={g.id}>
               <Link href={`/debrief?id=${g.id}`}>
                 <Card className="flex items-center gap-4 transition hover:bg-panel-2">
-                  <span className="w-28 font-black" style={{ color: caught ? "var(--sus)" : "var(--clean)" }}>
+                  <span className="w-28 font-black" style={{ color: caught ? "var(--red)" : "var(--green)" }}>
                     {caught ? "CAUGHT" : g.end_reason === "left" ? "WALKED OUT" : "SURVIVED"}
                   </span>
                   <span className="flex-1 text-sm">
-                    <span className="font-semibold">
+                    <span className="font-black">
                       {g.alias} vs {g.scenario_name}
                     </span>
-                    <span className="block text-xs text-muted">
+                    <span className="block text-xs font-bold text-muted">
                       {new Date(g.created_at).toLocaleString()} · {fmtTime(g.duration_sec)} · gap {g.larp_gap} · final sus {g.final_suspicion}
                     </span>
                   </span>
-                  <span className="font-mono text-2xl font-black">{g.score.toLocaleString()}</span>
+                  <span className="text-2xl font-black tabular-nums">{g.score.toLocaleString()}</span>
                 </Card>
               </Link>
             </li>

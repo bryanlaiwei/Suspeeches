@@ -8,7 +8,7 @@ import { EventDetail, SuspicionBar } from "@/components/SuspicionBar";
 import { Timeline } from "@/components/Timeline";
 import { Transcript, type LiveLine } from "@/components/Transcript";
 import { Avatar } from "@/components/Avatar";
-import { Button, Card, cx, Shell } from "@/components/ui";
+import { Button, Card, cx, ROW as ROW_BASE, Shell } from "@/components/ui";
 import { useAnimatedNumber } from "@/components/useAnimatedNumber";
 import { api } from "@/lib/client/api";
 import { supabase } from "@/lib/client/supabase";
@@ -35,7 +35,7 @@ const VERDICT: Record<string, { label: string; chip: string }> = {
 };
 
 /** Light row inside a card (spikes, claims, tips). */
-const ROW = "flex items-start gap-3 rounded-xl bg-[#f6f4ff] px-3 py-2.5 text-sm font-bold";
+const ROW = cx(ROW_BASE, "flex items-start gap-3");
 const H2 = "text-base font-black";
 
 function Debrief() {
@@ -93,8 +93,8 @@ function Debrief() {
   if (!state || !d) {
     return (
       <Shell step={3}>
-        <div className="flex flex-1 flex-col items-center justify-center gap-3 text-muted">
-          <div className="h-10 w-10 animate-spin rounded-full border-4 border-line border-t-brand" />
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 font-bold text-muted">
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-lav-2 border-t-purple" />
           The handler is writing up your debrief…
         </div>
       </Shell>
@@ -203,7 +203,7 @@ function Debrief() {
             <ul className="space-y-2">
               {d.claims.map((c) => (
                 <li key={c.claim} className={ROW}>
-                  <span className={cx("mt-0.5 w-20 shrink-0 rounded-md py-0.5 text-center text-[10px] font-black tracking-wider", VERDICT[c.verdict].chip)}>
+                  <span className={cx("mt-0.5 w-24 shrink-0 rounded-lg py-0.5 text-center text-xs font-black tracking-wider", VERDICT[c.verdict].chip)}>
                     {VERDICT[c.verdict].label}
                   </span>
                   <span>
@@ -254,7 +254,7 @@ function Missing({ message }: { message: string }) {
   return (
     <Shell step={3}>
       <Card className="mx-auto mt-10 max-w-md text-center">
-        <p className="mb-4 text-sm text-muted">{message}</p>
+        <p className="mb-4 text-sm font-bold text-muted">{message}</p>
         <Link href="/setup">
           <Button>Start a new scene</Button>
         </Link>

@@ -192,7 +192,7 @@ const TAG_COLORS: Record<string, string> = {
 export function Tag({ children, color }: { children: ReactNode; color?: string }) {
   const key = String(children);
   return (
-    <span className={cx("inline-block rounded-lg px-2.5 py-1 text-[11px] font-black tracking-widest", color ?? TAG_COLORS[key] ?? "bg-lav-2 text-ink")}>
+    <span className={cx("inline-block rounded-xl px-2.5 py-1 text-xs font-black tracking-widest", color ?? TAG_COLORS[key] ?? "bg-lav-2 text-ink")}>
       {children}
     </span>
   );
@@ -202,25 +202,32 @@ export function Label({ children, hint }: { children: ReactNode; hint?: ReactNod
   return (
     <span className="mb-2 flex items-baseline justify-between gap-2 text-xs font-extrabold uppercase tracking-widest text-muted">
       {children}
-      {hint && <span className="text-[11px] font-bold normal-case tracking-normal text-muted/80">{hint}</span>}
+      {hint && <span className="text-xs font-bold normal-case tracking-normal text-muted">{hint}</span>}
     </span>
   );
 }
 
-const field =
+/** Shared looks, so every page uses the same rows, notes and pickers. */
+export const ROW = "rounded-xl bg-[#f6f4ff] px-3 py-2.5 text-sm font-bold";
+export const ERROR_NOTE = "rounded-2xl bg-[#ffd6d6] px-4 py-3 text-sm font-bold text-[#a32d2d]";
+export const PICK_BASE = "rounded-2xl border-2 text-left font-bold transition active:translate-y-[2px]";
+export const PICK_ON = "border-blue bg-blue-soft shadow-[0_3px_0_var(--blue)]";
+export const PICK_OFF = "border-lav-2 bg-white shadow-[0_3px_0_var(--lav-2)] hover:bg-panel-2";
+
+export const FIELD =
   "w-full rounded-2xl border-2 border-lav-2 bg-white px-4 py-3 text-base font-bold text-ink placeholder:font-semibold placeholder:text-muted/60 outline-none focus:border-blue";
 
 export function Input(props: InputHTMLAttributes<HTMLInputElement>) {
-  return <input {...props} className={cx(field, props.className)} />;
+  return <input {...props} className={cx(FIELD, props.className)} />;
 }
 
 export function Textarea(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
-  return <textarea {...props} className={cx(field, props.className)} />;
+  return <textarea {...props} className={cx(FIELD, props.className)} />;
 }
 
 export function FictionNote({ className = "", onDark = false }: { className?: string; onDark?: boolean }) {
   return (
-    <p className={cx("text-xs font-semibold leading-relaxed", onDark ? "text-white/70" : "text-muted", className)}>
+    <p className={cx("text-xs font-bold leading-relaxed", onDark ? "text-white/70" : "text-muted", className)}>
       Everyone you&apos;ll meet here is made up, and so is the job. Practice and fun only. Please don&apos;t larp on real
       people. 🙏
     </p>

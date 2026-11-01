@@ -23,7 +23,7 @@ function Route() {
   return (
     <Shell>
       <div className="flex flex-1 items-center justify-center">
-        <div className="h-10 w-10 animate-spin rounded-full border-4 border-line border-t-brand" />
+        <div className="h-10 w-10 animate-spin rounded-full border-4 border-lav-2 border-t-purple" />
       </div>
     </Shell>
   );

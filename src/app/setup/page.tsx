@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { RequireAuth, useAuth } from "@/components/Auth";
 import { useEffect, useMemo, useState } from "react";
 import { Avatar } from "@/components/Avatar";
-import { Btn, Button, Card, cx, FictionNote, Input, Label, Shell, Textarea } from "@/components/ui";
+import { Btn, Button, Card, Chip, cx, ERROR_NOTE, FIELD, PICK_BASE, PICK_OFF, PICK_ON, ROW, FictionNote, Input, Label, Shell, Textarea } from "@/components/ui";
 import { api } from "@/lib/client/api";
 import { fetchProfile } from "@/lib/client/profileStore";
 import { gapKeyFor, loadSetupDraft, saveSetupDraft, type SetupDraft } from "@/lib/client/storage";
@@ -195,21 +195,21 @@ function SetupPageInner() {
 
   return (
     <Shell step={1}>
-      <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-line bg-panel/60 px-4 py-2.5 text-sm">
+      <div className="mb-4 flex flex-wrap items-center gap-2 rounded-2xl border-2 border-lav-2 bg-white px-4 py-2.5 text-sm font-bold shadow-[0_3px_0_var(--lav-2)]">
         <span className="text-muted">Playing as the real</span>
-        <span className="font-semibold">{profile.name}</span>
+        <span className="font-black">{profile.name}</span>
         <span className="text-muted">
           · {[profile.role, profile.yearsExperience ? `${profile.yearsExperience} yrs` : ""].filter(Boolean).join(", ")}
         </span>
-        <Link href="/account" className="ml-auto text-xs text-brand hover:underline">
+        <Link href="/account" className="ml-auto text-xs font-extrabold uppercase tracking-widest text-blue hover:underline">
           Edit profile
         </Link>
       </div>
       <div className="grid gap-6 lg:grid-cols-[1.35fr_1fr]">
         <div className="space-y-6">
           <Card>
-            <h2 className="mb-1 text-lg font-bold">1. Pick a scene</h2>
-            <p className="mb-4 text-sm text-muted">Each character has their own voice, personality and way of probing.</p>
+            <h2 className="mb-1 text-lg font-black">1. Pick a scene</h2>
+            <p className="mb-4 text-sm font-bold text-muted">Each character has their own voice, personality and way of probing.</p>
             <div className="grid gap-3 sm:grid-cols-2">
               {ALL_SCENES.map((p) => (
                 <button
@@ -217,8 +217,9 @@ function SetupPageInner() {
                   type="button"
                   onClick={() => pickScenario(p.id)}
                   className={cx(
-                    "flex items-center gap-3 rounded-xl border p-3 text-left transition",
-                    scenarioId === p.id ? "border-brand bg-brand/10 ring-1 ring-brand/50" : "border-line hover:bg-panel-2",
+                    PICK_BASE,
+                    "flex items-center gap-3 p-3",
+                    scenarioId === p.id ? PICK_ON : PICK_OFF,
                   )}
                 >
                   {p.id === "party" ? (
@@ -231,8 +232,8 @@ function SetupPageInner() {
                     <Avatar palette={p} suspicion={15} getLevel={() => 0} className="h-16 w-16 shrink-0" />
                   )}
                   <span>
-                    <span className="block font-semibold">{p.label}</span>
-                    <span className="block text-xs text-muted">
+                    <span className="block font-black">{p.label}</span>
+                    <span className="block text-xs font-bold text-muted">
                       {p.id === "custom" || p.id === "group" || p.id === "party" ? p.blurb : `${p.character}, ${p.title}. ${p.blurb}`}
                     </span>
                   </span>
@@ -250,7 +251,7 @@ function SetupPageInner() {
                   <select
                     value={custom.voiceId}
                     onChange={(e) => setCustom({ ...custom, voiceId: e.target.value })}
-                    className="w-full rounded-xl border border-line bg-bg/60 px-3 py-2.5 text-sm outline-none focus:border-brand"
+                    className={FIELD}
                   >
                     {VOICES.map((v) => (
                       <option key={v.id} value={v.id}>
@@ -282,8 +283,8 @@ function SetupPageInner() {
           </Card>
 
           <Card>
-            <h2 className="mb-1 text-lg font-bold">2. Your cover story</h2>
-            <p className="mb-4 text-sm text-muted">
+            <h2 className="mb-1 text-lg font-black">2. Your cover story</h2>
+            <p className="mb-4 text-sm font-bold text-muted">
               This is all {audience} will know about you.{isGroup && " They'll all be listening."}
             </p>
             <label className="mb-4 block">
@@ -293,12 +294,12 @@ function SetupPageInner() {
             <Label hint={`${claims.length}/8`}>Claims you&apos;ll fake</Label>
             <ul className="mb-3 space-y-2">
               {claims.map((c, i) => (
-                <li key={c} className="flex items-start gap-2 rounded-xl border border-line bg-bg/50 px-3 py-2 text-sm">
-                  <span className="mt-0.5 font-mono text-xs text-muted">{i + 1}</span>
+                <li key={c} className={cx(ROW, "flex items-start gap-2")}>
+                  <span className="mt-0.5 text-xs font-black text-muted">{i + 1}</span>
                   <span className="flex-1">{c}</span>
                   <button
                     type="button"
-                    className="text-muted hover:text-sus"
+                    className="text-muted hover:text-red"
                     onClick={() => setClaims((cs) => cs.filter((x) => x !== c))}
                     aria-label={`Remove claim ${c}`}
                   >
@@ -336,10 +337,10 @@ function SetupPageInner() {
                       type="button"
                       onClick={() => addClaim(s.claim)}
                       title={s.why}
-                      className="animate-sus-pop rounded-full border border-brand/40 bg-brand/10 px-3 py-1.5 text-left text-xs hover:bg-brand/20"
+                      className={cx("animate-sus-pop px-3 py-2 text-xs", PICK_BASE, PICK_OFF)}
                     >
                       + {s.claim}
-                      <span className="block text-[10px] text-muted">{s.why}</span>
+                      <span className="block text-xs font-semibold text-muted">{s.why}</span>
                     </button>
                   ))}
                 </div>
@@ -364,7 +365,7 @@ function SetupPageInner() {
           </Card>
 
           <Card>
-            <h2 className="mb-4 text-lg font-bold">3. The scene</h2>
+            <h2 className="mb-4 text-lg font-black">3. The scene</h2>
             <label className="mb-4 block">
               <Label>Your goal</Label>
               <Input value={goal} onChange={(e) => setGoal(e.target.value)} />
@@ -372,21 +373,13 @@ function SetupPageInner() {
             <Label>Time limit</Label>
             <div className="mb-4 flex gap-2">
               {TIME_OPTIONS.map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => setTimeLimitSec(t)}
-                  className={cx(
-                    "rounded-xl border px-4 py-2 font-mono text-sm",
-                    timeLimitSec === t ? "border-brand bg-brand/15" : "border-line hover:bg-panel-2",
-                  )}
-                >
+                <Chip key={t} selected={timeLimitSec === t} onClick={() => setTimeLimitSec(t)}>
                   {t / 60} min
-                </button>
+                </Chip>
               ))}
             </div>
             {emailTo && (
-              <p className="text-sm text-muted">
+              <p className="text-sm font-bold text-muted">
                 📬 Afterwards, the character will email you a follow-up at <strong className="text-ink">{emailTo}</strong>.
               </p>
             )}
@@ -396,7 +389,7 @@ function SetupPageInner() {
         <div className="space-y-6 lg:sticky lg:top-6 lg:self-start">
           <Card>
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-lg font-bold">Larp gap</h2>
+              <h2 className="text-lg font-black">Larp gap</h2>
               {gapLoading && (
                 <span className="animate-pulse rounded-full bg-blue-soft px-3 py-1 text-xs font-black uppercase tracking-widest text-blue">
                   Measuring…
@@ -406,21 +399,21 @@ function SetupPageInner() {
             {gap ? (
               <div className={cx(!gapFresh && "opacity-50")}>
                 <div className="flex items-baseline gap-3">
-                  <span className="font-mono text-5xl font-black">{gap.gapScore}</span>
-                  <span className="text-muted">/ 100</span>
-                  <span className="ml-auto rounded-full bg-brand/15 px-3 py-1 font-mono text-sm font-bold text-brand">
+                  <span className="text-5xl font-black tabular-nums">{gap.gapScore}</span>
+                  <span className="font-bold text-muted">/ 100</span>
+                  <span className="ml-auto rounded-full bg-lav px-3 py-1 text-sm font-black text-purple">
                     ×{gap.multiplier.toFixed(2)} score
                   </span>
                 </div>
-                <div className="my-3 h-2 overflow-hidden rounded-full bg-bg">
+                <div className="my-3 h-2.5 overflow-hidden rounded-full bg-lav">
                   <div
-                    className="h-full rounded-full bg-gradient-to-r from-clean via-warn to-sus"
+                    className="h-full rounded-full bg-gradient-to-r from-green via-yellow to-red"
                     style={{ width: `${gap.gapScore}%` }}
                   />
                 </div>
-                <p className="text-sm text-ink/80">{gap.rationale}</p>
+                <p className="text-sm font-bold">{gap.rationale}</p>
                 {!gapFresh && !gapLoading && (
-                  <p className="mt-2 text-xs font-bold text-warn">Something changed. Save your cover story to update the gap.</p>
+                  <p className="mt-2 text-xs font-extrabold text-[#a8431a]">Something changed. Save your cover story to update the gap.</p>
                 )}
               </div>
             ) : (
@@ -431,7 +424,7 @@ function SetupPageInner() {
             )}
           </Card>
           <FictionNote />
-          {error && <p className="rounded-xl border border-sus/40 bg-sus/10 px-4 py-3 text-sm text-sus">{error}</p>}
+          {error && <p className={ERROR_NOTE}>{error}</p>}
           <Button type="button" className="w-full py-4 text-base" onClick={start} disabled={starting || !claims.length || !gapFresh || gapLoading}>
             {starting
               ? "Preparing the scene…"
@@ -474,14 +467,14 @@ function GroupBuilder({
         />
       </label>
       {group.characters.map((c, i) => (
-        <div key={i} className="flex gap-3 rounded-xl border border-line bg-bg/40 p-3">
+        <div key={i} className={cx(ROW, "flex gap-3 p-3")}>
           <Avatar palette={preview[i]} suspicion={15} getLevel={() => 0} className="h-14 w-14 shrink-0" />
           <div className="grid flex-1 gap-2 sm:grid-cols-2">
             <Input value={c.name} onChange={(e) => setChar(i, { name: e.target.value })} placeholder={`Character ${i + 1} name`} />
             <select
               value={c.voiceId}
               onChange={(e) => setChar(i, { voiceId: e.target.value })}
-              className="w-full rounded-xl border border-line bg-bg/60 px-3 py-2.5 text-sm outline-none focus:border-brand"
+              className={FIELD}
             >
               {VOICES.map((v) => (
                 <option key={v.id} value={v.id} disabled={v.id !== c.voiceId && used.has(v.id)}>
@@ -506,7 +499,7 @@ function GroupBuilder({
           {group.characters.length > 2 && (
             <button
               type="button"
-              className="self-start text-muted hover:text-sus"
+              className="self-start text-muted hover:text-red"
               onClick={() => onChange({ ...group, characters: group.characters.filter((_, j) => j !== i) })}
               aria-label={`Remove character ${i + 1}`}
             >

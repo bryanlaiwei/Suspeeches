@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/Auth";
-import { Button, Card, cx, FictionNote, Input, Label, Shell } from "@/components/ui";
+import { Button, Card, cx, ERROR_NOTE, FictionNote, Input, Label, Shell } from "@/components/ui";
 import { authEnabled, supabase } from "@/lib/client/supabase";
 
 export default function LoginPage() {
@@ -48,20 +48,20 @@ export default function LoginPage() {
           <h1 className="text-5xl font-black leading-[1.02] tracking-tight">
             Don&apos;t give
             <br />
-            yourself <span className="text-sus">away.</span>
+            yourself <span className="text-red">away.</span>
           </h1>
-          <p className="mt-4 text-muted">
+          <p className="mt-4 font-bold text-muted">
             Sign in to save your real profile and every debrief. Your profile is only ever shown to the hidden judge.
           </p>
         </div>
         <Card>
-          <div className="mb-5 flex rounded-xl border border-line p-1 text-sm">
+          <div className="mb-5 flex gap-1 rounded-2xl bg-lav p-1 text-sm">
             {(["signin", "signup"] as const).map((m) => (
               <button
                 key={m}
                 type="button"
                 onClick={() => (setMode(m), setError(null))}
-                className={cx("flex-1 rounded-lg py-2 font-semibold", mode === m ? "bg-brand text-white" : "text-muted hover:text-ink")}
+                className={cx("flex-1 rounded-xl py-2 font-extrabold transition", mode === m ? "bg-white text-purple shadow-[0_2px_0_var(--lav-2)]" : "text-muted hover:text-ink")}
               >
                 {m === "signin" ? "Sign in" : "Create account"}
               </button>
@@ -83,8 +83,8 @@ export default function LoginPage() {
                 required
               />
             </label>
-            {error && <p className="text-sm text-sus">{error}</p>}
-            {notice && <p className="text-sm text-clean">{notice}</p>}
+            {error && <p className={ERROR_NOTE}>{error}</p>}
+            {notice && <p className="rounded-2xl bg-green-soft px-4 py-3 text-sm font-bold text-[#2f6b00]">{notice}</p>}
             <Button type="submit" className="w-full py-3" disabled={busy}>
               {busy ? "One sec…" : mode === "signin" ? "Sign in →" : "Create account →"}
             </Button>
