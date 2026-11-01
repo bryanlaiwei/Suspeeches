@@ -24,6 +24,7 @@ import type {
   ClaimState,
   Debrief,
   EndReason,
+  Followup,
   EventResponse,
   PublicSessionState,
   SilenceResponse,
@@ -48,6 +49,7 @@ export interface Session {
   claims: ClaimState[];
   debrief: Debrief | null;
   debriefPromise: Promise<Debrief> | null;
+  followup: Followup | null;
   handler: PublicSessionState["handler"];
   /** Public origin of the app, for links in emails. */
   appUrl: string;
@@ -92,6 +94,7 @@ export function createSession(profile: Profile, setup: Setup, gap: GapResult, ap
     claims: setup.claims.map((claim) => ({ claim, status: "untested" })),
     debrief: null,
     debriefPromise: null,
+    followup: null,
     handler: { enabled: false, address: null, briefSent: false, debriefSent: false, error: null },
     appUrl,
     owner,
@@ -316,6 +319,7 @@ export function toPublic(s: Session): PublicSessionState {
     startedAt: s.startedAt,
     durationSec: s.durationSec,
     debrief: s.debrief,
+    followup: s.followup,
     handler: s.handler,
   };
 }

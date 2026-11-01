@@ -109,9 +109,15 @@ There is no NPC model variable: the NPC's LLM is chosen inside each ElevenLabs a
 
 Render serves HTTPS, which browsers require for microphone access. Sessions live in memory, so keep one instance; on the free plan the service sleeps when idle and in-flight scenes are lost (use the starter plan for demos).
 
-## Agentboxd handler
+## Agentboxd emails
 
-If `AGENTBOXD_API_KEY` is set and the player gives an email and ticks the box on the setup screen, a "handler" inbox (created once with the official `agentboxd` client, idempotent on `AGENTBOXD_HANDLER_CLIENT_ID`) emails a cover-story brief when the scene starts and the debrief afterwards. It sits behind the `HandlerChannel` interface in [src/lib/handler.ts](src/lib/handler.ts) and never blocks the game: failures are logged and shown on the debrief page. Note Agentboxd's new-workspace send caps (20 per day for the first 3 days).
+If `AGENTBOXD_API_KEY` is set and the player gives an email and ticks the box on the setup screen, three emails go out:
+
+1. **Brief** (scene start), from the "handler" inbox: cover story, objective, clock, larp gap, hardest claims.
+2. **Debrief** (seconds after the scene ends), from the handler: outcome, score, claim verdicts, biggest tells, tips.
+3. **In-character follow-up**, from the character's own inbox (Dana, Priya, Maya, Theo and Jordan each have one; custom characters share one that is renamed per send). It's written by `GAP_MODEL` from `prompts/followup.v1.md` using the transcript, the goal and how you did: reached the goal → a concrete next step (interview slot, investor intro, after-party address); survived without it → noncommittal; caught → a cool brush-off that hints at what didn't add up (from whoever caught you in a group); walked out → a reaction to that. Every follow-up ends with a footer saying it comes from a fictional character in a practice game.
+
+The follow-up also appears on the debrief page, even with email off. Inboxes are created idempotently on `client_id` (`sus-handler`, `sus-npc-<name>`, `sus-npc-custom`). Everything sits behind the `HandlerChannel` interface in [src/lib/handler.ts](src/lib/handler.ts) and never blocks the game. Mind Agentboxd's send caps for new workspaces.
 
 ## Layout
 

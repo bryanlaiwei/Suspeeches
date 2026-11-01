@@ -139,6 +139,16 @@ export const DebriefRawSchema = z.object({
 });
 export type DebriefRaw = z.infer<typeof DebriefRawSchema>;
 
+/* ---------- character follow-up email ---------- */
+
+export const FollowupRawSchema = z.object({
+  goal_reached: z.boolean(),
+  sender: z.string(),
+  subject: z.string(),
+  body: z.string(),
+});
+export type FollowupRaw = z.infer<typeof FollowupRawSchema>;
+
 /* ---------- API request bodies ---------- */
 
 export const TimingSchema = z.object({

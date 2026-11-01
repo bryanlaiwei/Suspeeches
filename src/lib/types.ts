@@ -72,6 +72,17 @@ export interface ClaimState {
   status: ClaimStatus;
 }
 
+/** The in-character email a character sends after the scene. */
+export interface Followup {
+  sender: string;
+  subject: string;
+  body: string;
+  goalReached: boolean;
+  /** Set once Agentboxd has accepted it (null when email is off or still sending). */
+  sentTo: string | null;
+  fromAddress: string | null;
+}
+
 export interface Debrief {
   outcome: "survived" | "caught";
   endReason: EndReason;
@@ -112,6 +123,7 @@ export interface PublicSessionState {
   startedAt: number;
   durationSec: number | null;
   debrief: Debrief | null;
+  followup: Followup | null;
   handler: { enabled: boolean; address: string | null; briefSent: boolean; debriefSent: boolean; error: string | null };
 }
 

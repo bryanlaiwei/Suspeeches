@@ -275,6 +275,39 @@ function Debrief() {
             />
           </Card>
 
+          {state.followup && (
+            <Card>
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <h2 className="font-bold">📬 {state.followup.sender} emailed you</h2>
+                <span
+                  className={cx(
+                    "rounded-full px-2.5 py-0.5 text-[11px] font-bold",
+                    state.followup.goalReached ? "bg-clean/15 text-clean" : "bg-sus/10 text-sus",
+                  )}
+                >
+                  {state.followup.goalReached ? "Goal reached" : "Goal missed"}
+                </span>
+              </div>
+              <div className="rounded-xl border border-line bg-bg/60 p-4 text-sm">
+                <div className="mb-2 border-b border-line pb-2 text-xs text-muted">
+                  <div>
+                    <span className="text-ink/80">From:</span> {state.followup.sender}
+                    {state.followup.fromAddress ? ` <${state.followup.fromAddress}>` : ""}
+                  </div>
+                  <div>
+                    <span className="text-ink/80">Subject:</span> {state.followup.subject}
+                  </div>
+                </div>
+                <p className="whitespace-pre-wrap leading-relaxed text-ink/90">{state.followup.body}</p>
+              </div>
+              <p className="mt-2 text-xs text-muted">
+                {state.handler.enabled
+                  ? "Also sent to your inbox."
+                  : "Tick the handler email box in setup to get these in your inbox."}
+              </p>
+            </Card>
+          )}
+
           <Card>
             <h2 className="mb-3 font-bold">Share your debrief</h2>
             <ShareCard state={state} />
