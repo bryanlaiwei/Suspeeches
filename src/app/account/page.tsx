@@ -1,11 +1,14 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { RequireAuth } from "@/components/Auth";
+import { RequireAuth, SignOutButton } from "@/components/Auth";
 import { Avatar } from "@/components/Avatar";
+import { GameHistory } from "@/components/GameHistory";
 import { Button, Card, FictionNote, Input, Label, Shell, Textarea } from "@/components/ui";
 import { fetchProfile, storeProfile } from "@/lib/client/profileStore";
+import { authEnabled } from "@/lib/client/supabase";
 import { PRESETS } from "@/lib/presets";
 import { ProfileSchema } from "@/lib/schemas";
 
@@ -160,6 +163,26 @@ function ProfileForm() {
           <FictionNote className="mt-5" />
         </Card>
       </div>
+
+      {authEnabled && (
+        <>
+          <div id="history" className="mt-14">
+            <div className="mb-4 flex flex-wrap items-end justify-between gap-4">
+              <div>
+                <h2 className="text-2xl font-black">Your history</h2>
+                <p className="text-sm text-muted">Every scene you&apos;ve played, newest first.</p>
+              </div>
+              <Link href="/setup">
+                <Button>Play a scene →</Button>
+              </Link>
+            </div>
+            <GameHistory />
+          </div>
+          <div className="mt-12 flex justify-center">
+            <SignOutButton />
+          </div>
+        </>
+      )}
     </Shell>
   );
 }

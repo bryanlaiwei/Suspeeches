@@ -43,7 +43,7 @@ Each group is a single ElevenLabs agent using **multi-voice**: the agent wraps e
 
 You fill in your real profile once (Profile in the top bar, `/account`); after that, signing in takes you straight to setup.
 
-Players sign up with email + password (Supabase Auth). Their real profile and every finished game (debrief, transcript, timeline) are saved to Supabase under row-level security, so each player only sees their own. The browser sends its Supabase access token to the API; `/api/session`, `/api/gap` and `/api/suggest` reject requests without a valid one, which also stops strangers from spending your API credits. `/history` lists past games, and debrief links keep working after a server restart.
+Players sign up with email + password (Supabase Auth). Their real profile and every finished game (debrief, transcript, timeline) are saved to Supabase under row-level security, so each player only sees their own. The browser sends its Supabase access token to the API; `/api/session`, `/api/gap` and `/api/suggest` reject requests without a valid one, which also stops strangers from spending your API credits. The Profile page lists past games and has the sign-out button, and debrief links keep working after a server restart.
 
 Tables (`profiles`, `games`) live in the Supabase project `sus`. In the Supabase dashboard: **Authentication → Sign In / Providers → Email**, turn off **Confirm email** for a frictionless demo (the built-in mailer is rate-limited), and add your Render URL under **Authentication → URL Configuration**.
 
@@ -127,5 +127,5 @@ src/lib/              env, schemas (zod), llm (structured call + retry), judge, 
                       sessions (in-memory), scoring, timing, elevenlabs, handler, mock
 src/lib/client/       storage (localStorage), sound cues (WebAudio), api
 src/components/       Avatar, SceneRunner, CallScreen (live call), Shells, SuspicionBar, Transcript, Timeline, ShareCard, Auth, ui (theme kit)
-src/app/              / · /login · /account (profile) · /setup · /scene · /debrief · /history · /api/*
+src/app/              / · /login · /account (profile) · /setup · /scene · /debrief · /api/*  (/history redirects to /account)
 ```
