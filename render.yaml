@@ -30,6 +30,12 @@ services:
         value: claude-haiku-5-5
       - key: SUMMARY_MODEL
         value: claude-opus-5-5
+      # Supabase accounts. Public values (the publishable key is meant to ship to browsers);
+      # they must be set at build time because Next.js inlines NEXT_PUBLIC_* vars.
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        value: https://mvrkcmlyqojzgcwfjrno.supabase.co
+      - key: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+        value: sb_publishable_L3odz5yWjb8ucVm6hViqLw_ucuxAfRX
       - key: AGENTBOXD_API_KEY
         sync: false
       - key: AGENTBOXD_HANDLER_CLIENT_ID

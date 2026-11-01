@@ -2,12 +2,21 @@
 
 import { ConversationProvider } from "@elevenlabs/react";
 import { useRouter } from "next/navigation";
+import { RequireAuth } from "@/components/Auth";
 import { useEffect, useState } from "react";
 import { SceneRunner } from "@/components/SceneRunner";
 import { loadProfile, loadSetupDraft, type SetupDraft } from "@/lib/client/storage";
 import { SetupSchema, type Profile } from "@/lib/schemas";
 
 export default function ScenePage() {
+  return (
+    <RequireAuth>
+      <ScenePageInner />
+    </RequireAuth>
+  );
+}
+
+function ScenePageInner() {
   const router = useRouter();
   const [data, setData] = useState<{ profile: Profile; draft: SetupDraft } | null>(null);
 

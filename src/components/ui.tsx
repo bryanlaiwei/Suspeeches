@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { UserMenu } from "./Auth";
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, TextareaHTMLAttributes } from "react";
 
 export function cx(...parts: (string | false | null | undefined)[]) {
@@ -24,6 +25,7 @@ export function Shell({ children, step }: { children: ReactNode; step?: 1 | 2 | 
     <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col px-4 pb-16 sm:px-6">
       <header className="flex items-center justify-between py-5">
         <Logo />
+        <div className="flex items-center gap-5">
         {step && (
           <ol className="hidden items-center gap-2 text-xs text-muted sm:flex">
             {steps.map((s, i) => (
@@ -41,6 +43,8 @@ export function Shell({ children, step }: { children: ReactNode; step?: 1 | 2 | 
             ))}
           </ol>
         )}
+        <UserMenu />
+        </div>
       </header>
       {children}
     </div>

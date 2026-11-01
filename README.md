@@ -24,6 +24,12 @@ See [PLAN.md](PLAN.md) for the architecture and build order.
 * **Silence penalty:** if it's your turn and you say nothing, a countdown appears. At 8 s of silence suspicion goes up by 6, then by 8 and 10 every further 6 s. The browser reports the silence, and the server checks the timing and applies the penalty (`/api/session/:id/silence`; tune it with the constants in `src/lib/scoring.ts`). The judge is told not to count the same pause again.
 * Score = survival (1000 survived, 500 walked out, 0–250 caught based on time held) × gap multiplier × low-suspicion bonus (1 + (100 − average suspicion)/100).
 
+## Accounts and history
+
+Players sign up with email + password (Supabase Auth). Their real profile and every finished game (debrief, transcript, timeline) are saved to Supabase under row-level security, so each player only sees their own. The browser sends its Supabase access token to the API; `/api/session`, `/api/gap` and `/api/suggest` reject requests without a valid one, which also stops strangers from spending your API credits. `/history` lists past games, and debrief links keep working after a server restart.
+
+Tables (`profiles`, `games`) live in the Supabase project `sus`. In the Supabase dashboard: **Authentication → Sign In / Providers → Email**, turn off **Confirm email** for a frictionless demo (the built-in mailer is rate-limited), and add your Render URL under **Authentication → URL Configuration**.
+
 ## Run locally
 
 Requires Node 20+ (22 recommended).
@@ -73,6 +79,8 @@ Other checks: `npm run typecheck`, `npm run lint`, `npm run build`.
 | `AGENTBOXD_API_KEY` | no | Handler inbox emails (brief before, debrief after) |
 | `AGENTBOXD_HANDLER_CLIENT_ID` | no (default `sus-handler`) | Idempotent id for the handler inbox |
 | `PUBLIC_APP_URL` | no | Link in debrief emails (Render's `RENDER_EXTERNAL_URL` is used otherwise) |
+| `NEXT_PUBLIC_SUPABASE_URL` | for accounts | Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | for accounts | Supabase publishable key (safe to expose) |
 | `MOCK_MODE` | no | `1` forces canned responses (development only) |
 
 There is no NPC model variable: the NPC's LLM is chosen inside each ElevenLabs agent (`llm:` in `prompts/npc/*.md`, default `gemini-2.5-flash` for low voice latency).

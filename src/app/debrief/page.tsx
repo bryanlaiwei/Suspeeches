@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { RequireAuth } from "@/components/Auth";
 import { Avatar } from "@/components/Avatar";
 import { ShareCard } from "@/components/ShareCard";
 import { EventDetail, SuspicionBar } from "@/components/SuspicionBar";
@@ -11,6 +12,7 @@ import { Transcript, type LiveLine } from "@/components/Transcript";
 import { Button, Card, cx, Shell } from "@/components/ui";
 import { useAnimatedNumber } from "@/components/useAnimatedNumber";
 import { api } from "@/lib/client/api";
+import { supabase } from "@/lib/client/supabase";
 import { fmtTime } from "@/lib/context";
 import { CUSTOM_PRESET, presetFor } from "@/lib/presets";
 import { START_SUSPICION } from "@/lib/scoring";
@@ -18,9 +20,11 @@ import type { PublicSessionState } from "@/lib/types";
 
 export default function DebriefPage() {
   return (
-    <Suspense fallback={null}>
-      <Debrief />
-    </Suspense>
+    <RequireAuth>
+      <Suspense fallback={null}>
+        <Debrief />
+      </Suspense>
+    </RequireAuth>
   );
 }
 
@@ -42,9 +46,16 @@ function Debrief() {
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
+    // Live server copy first; fall back to the saved game (survives server restarts).
     api
       .debrief(id)
-      .then((r) => !cancelled && setState(r.state))
+      .then((r) => r.state)
+      .catch(async (e) => {
+        const { data } = (await supabase()?.from("games").select("state").eq("id", id).maybeSingle()) ?? { data: null };
+        if (data?.state) return data.state as PublicSessionState;
+        throw e;
+      })
+      .then((s) => !cancelled && setState(s))
       .catch((e) => !cancelled && setError(e instanceof Error ? e.message : String(e)));
     return () => {
       cancelled = true;

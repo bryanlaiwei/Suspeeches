@@ -2,9 +2,10 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { RequireAuth } from "@/components/Auth";
 import { Avatar } from "@/components/Avatar";
 import { Button, Card, FictionNote, Input, Label, Shell, Textarea } from "@/components/ui";
-import { loadProfile, saveProfile } from "@/lib/client/storage";
+import { fetchProfile, storeProfile } from "@/lib/client/profileStore";
 import { PRESETS } from "@/lib/presets";
 import { ProfileSchema } from "@/lib/schemas";
 
@@ -21,6 +22,14 @@ interface Form {
 const EMPTY: Form = { name: "", email: "", role: "", skills: "", yearsExperience: "", education: "", facts: "" };
 
 export default function ProfilePage() {
+  return (
+    <RequireAuth>
+      <ProfileForm />
+    </RequireAuth>
+  );
+}
+
+function ProfileForm() {
   const router = useRouter();
   const [form, setForm] = useState<Form>(EMPTY);
   const [error, setError] = useState<string | null>(null);
@@ -28,9 +37,8 @@ export default function ProfilePage() {
   const [demoSus, setDemoSus] = useState(20);
 
   useEffect(() => {
-    const p = loadProfile();
-    if (p) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- hydrate from localStorage once on mount
+    void fetchProfile().then((p) => {
+      if (!p) return;
       setForm({
         name: p.name,
         email: p.email ?? "",
@@ -41,7 +49,7 @@ export default function ProfilePage() {
         facts: p.facts.join("\n"),
       });
       setSaved(true);
-    }
+    });
     const id = setInterval(() => setDemoSus((s) => (s >= 90 ? 10 : s + 8)), 900);
     return () => clearInterval(id);
   }, []);
@@ -51,7 +59,7 @@ export default function ProfilePage() {
     setSaved(false);
   };
 
-  function submit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
     const parsed = ProfileSchema.safeParse({
       name: form.name,
@@ -66,7 +74,12 @@ export default function ProfilePage() {
       setError(parsed.error.issues[0]?.message ?? "Check the form");
       return;
     }
-    saveProfile(parsed.data);
+    try {
+      await storeProfile(parsed.data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+      return;
+    }
     router.push("/setup");
   }
 
@@ -111,7 +124,7 @@ export default function ProfilePage() {
         <Card className="lg:mt-6">
           <h2 className="text-lg font-bold">Your real profile</h2>
           <p className="mb-5 text-sm text-muted">
-            Only the hidden judge sees this. The character never does. Stored in this browser only.
+            Only the hidden judge sees this. The character never does. Saved to your account.
           </p>
           <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
             <label className="block">

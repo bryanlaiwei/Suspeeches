@@ -1,12 +1,13 @@
 "use client";
 
 import type { GapResult, Profile, ScenarioId, Setup } from "../schemas";
+import { authHeaders } from "./supabase";
 import type { CreateSessionResponse, EventResponse, PublicSessionState, SilenceResponse, Timing } from "../types";
 
 async function post<T>(url: string, body: unknown): Promise<T> {
   const res = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...(await authHeaders()) },
     body: JSON.stringify(body),
   });
   const json = await res.json().catch(() => ({}));

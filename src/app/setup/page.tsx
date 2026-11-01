@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { RequireAuth } from "@/components/Auth";
 import { useEffect, useMemo, useState } from "react";
 import { Avatar } from "@/components/Avatar";
 import { Button, Card, cx, FictionNote, Input, Label, Shell, Textarea } from "@/components/ui";
@@ -13,6 +14,14 @@ import { ScenarioIdSchema, SetupSchema, type GapResult, type Profile, type Scena
 const TIME_OPTIONS = [120, 180, 300, 480];
 
 export default function SetupPage() {
+  return (
+    <RequireAuth>
+      <SetupPageInner />
+    </RequireAuth>
+  );
+}
+
+function SetupPageInner() {
   const router = useRouter();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [scenarioId, setScenarioId] = useState<ScenarioId>("recruiter");

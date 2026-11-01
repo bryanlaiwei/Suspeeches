@@ -1,8 +1,11 @@
 import { suggestClaims } from "@/lib/gap";
 import { errorResponse, parseBody } from "@/lib/http";
+import { requireUser } from "@/lib/supabase-server";
 import { SuggestBodySchema } from "@/lib/schemas";
 
 export async function POST(req: Request) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.res;
   const body = await parseBody(req, SuggestBodySchema);
   if (!body.ok) return body.res;
   try {

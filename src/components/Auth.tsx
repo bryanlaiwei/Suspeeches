@@ -1,0 +1,58 @@
+"use client";
+
+import type { User } from "@supabase/supabase-js";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useState, type ReactNode } from "react";
+import { authEnabled, supabase } from "@/lib/client/supabase";
+
+/** Current Supabase user. `user` is null when signed out (or accounts are off). */
+export function useAuth() {
+  const [state, setState] = useState<{ user: User | null; loading: boolean }>({ user: null, loading: authEnabled });
+  useEffect(() => {
+    const sb = supabase();
+    if (!sb) return;
+    void sb.auth.getSession().then(({ data }) => setState({ user: data.session?.user ?? null, loading: false }));
+    const { data } = sb.auth.onAuthStateChange((_event, session) => setState({ user: session?.user ?? null, loading: false }));
+    return () => data.subscription.unsubscribe();
+  }, []);
+  return state;
+}
+
+/** Renders children only for signed-in players; sends everyone else to /login. */
+export function RequireAuth({ children }: { children: ReactNode }) {
+  const { user, loading } = useAuth();
+  const router = useRouter();
+  const blocked = authEnabled && !loading && !user;
+  useEffect(() => {
+    if (blocked) router.replace("/login");
+  }, [blocked, router]);
+  if (authEnabled && (loading || !user)) return null;
+  return <>{children}</>;
+}
+
+export function UserMenu() {
+  const { user } = useAuth();
+  const router = useRouter();
+  if (!authEnabled || !user) return null;
+  return (
+    <div className="flex items-center gap-3 text-xs text-muted">
+      <Link href="/history" className="hover:text-ink">
+        History
+      </Link>
+      <span className="hidden max-w-[180px] truncate sm:inline" title={user.email ?? ""}>
+        {user.email}
+      </span>
+      <button
+        type="button"
+        className="rounded-lg border border-line px-2.5 py-1 hover:bg-panel-2 hover:text-ink"
+        onClick={async () => {
+          await supabase()?.auth.signOut();
+          router.replace("/login");
+        }}
+      >
+        Sign out
+      </button>
+    </div>
+  );
+}

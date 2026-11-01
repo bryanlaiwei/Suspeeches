@@ -4,10 +4,13 @@ import { runHandler } from "@/lib/handler";
 import { appUrl, errorResponse, parseBody } from "@/lib/http";
 import { CreateSessionBodySchema } from "@/lib/schemas";
 import { createSession, toPublic } from "@/lib/sessions";
+import { requireUser } from "@/lib/supabase-server";
 import type { CreateSessionResponse } from "@/lib/types";
 
 /** Start a scene: larp gap (if the setup screen didn't already estimate it), NPC token, handler brief. */
 export async function POST(req: Request) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.res;
   const body = await parseBody(req, CreateSessionBodySchema);
   if (!body.ok) return body.res;
   const { profile, setup } = body.data;
@@ -20,7 +23,7 @@ export async function POST(req: Request) {
       body.data.gap ?? estimateGap(profile, setup.alias, setup.claims),
       voiceConnectionFor(setup),
     ]);
-    const session = createSession(profile, setup, gap, appUrl(req));
+    const session = createSession(profile, setup, gap, appUrl(req), auth.owner);
     runHandler(session, (h) => h.sendBrief(session));
     const res: CreateSessionResponse = { state: toPublic(session), voice };
     return Response.json(res);

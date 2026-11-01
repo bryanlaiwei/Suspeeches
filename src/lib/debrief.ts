@@ -1,5 +1,6 @@
 import { runHandler } from "./handler";
-import type { Session } from "./sessions";
+import { saveGame } from "./supabase-server";
+import { toPublic, type Session } from "./sessions";
 import { buildDebrief } from "./summarize";
 import type { Debrief } from "./types";
 
@@ -12,6 +13,7 @@ export function startDebrief(s: Session): Promise<Debrief> {
     (d) => {
       s.debrief = d;
       runHandler(s, (h) => h.sendDebrief(s, s.appUrl));
+      if (s.owner) void saveGame(s.owner, toPublic(s));
       return d;
     },
     (err) => {

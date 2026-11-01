@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { characterName } from "./context";
 import { startDebrief } from "./debrief";
+import type { Owner } from "./supabase-server";
 import { judgeTurn, npcHintFor } from "./judge";
 import type { GapResult, Profile, Setup, Timing } from "./schemas";
 import { moodNote } from "./mood";
@@ -48,6 +49,8 @@ export interface Session {
   handler: PublicSessionState["handler"];
   /** Public origin of the app, for links in emails. */
   appUrl: string;
+  /** Signed-in player (null when accounts are off); the finished game is saved to their history. */
+  owner: Owner | null;
   /** Serializes judge calls so suspicion updates apply in turn order. */
   queue: Promise<unknown>;
   /** Tone the NPC was last told to use. */
@@ -62,7 +65,7 @@ const g = globalThis as unknown as { __susSessions?: Map<string, Session> };
 const sessions: Map<string, Session> = (g.__susSessions ??= new Map());
 const TTL_MS = 6 * 60 * 60 * 1000;
 
-export function createSession(profile: Profile, setup: Setup, gap: GapResult, appUrl: string): Session {
+export function createSession(profile: Profile, setup: Setup, gap: GapResult, appUrl: string, owner: Owner | null): Session {
   const now = Date.now();
   for (const [id, s] of sessions) if (now - s.createdAt > TTL_MS) sessions.delete(id);
 
@@ -84,6 +87,7 @@ export function createSession(profile: Profile, setup: Setup, gap: GapResult, ap
     debriefPromise: null,
     handler: { enabled: false, address: null, briefSent: false, debriefSent: false, error: null },
     appUrl,
+    owner,
     queue: Promise.resolve(),
     mood: moodFor(START_SUSPICION),
     silence: null,
