@@ -12,7 +12,7 @@ import { gapKeyFor, loadSetupDraft, saveSetupDraft, type SetupDraft } from "@/li
 import { castFor, CUSTOM_PRESET, GROUP_PRESET, PARTY_CAST, PARTY_PRESET, PRESETS, presetFor, VOICES } from "@/lib/presets";
 import { ScenarioIdSchema, SetupSchema, type GapResult, type Profile, type ScenarioId } from "@/lib/schemas";
 
-const TIME_OPTIONS = [120, 180, 300, 480];
+const TIME_OPTIONS = [60, 300, 600];
 
 export default function SetupPage() {
   return (
@@ -38,7 +38,7 @@ function SetupPageInner() {
   const [claims, setClaims] = useState<string[]>([]);
   const [draftClaim, setDraftClaim] = useState("");
   const [goal, setGoal] = useState(PRESETS[0].defaultGoal);
-  const [timeLimitSec, setTimeLimitSec] = useState(180);
+  const [timeLimitSec, setTimeLimitSec] = useState(300);
   const { user } = useAuth();
   const [suggestions, setSuggestions] = useState<{ claim: string; why: string }[]>([]);
   const [suggesting, setSuggesting] = useState(false);
@@ -64,7 +64,7 @@ function SetupPageInner() {
       if (d?.group) setGroup({ ...d.group, characters: d.group.characters.map((c) => ({ ...c, expertise: c.expertise ?? "" })) });
       if (d?.claims?.length) setClaims(d.claims);
       if (d?.goal) setGoal(d.goal);
-      if (d?.timeLimitSec) setTimeLimitSec(d.timeLimitSec);
+      if (d?.timeLimitSec && TIME_OPTIONS.includes(d.timeLimitSec)) setTimeLimitSec(d.timeLimitSec);
       if (d?.gap && d.gapFor) {
         setGap(d.gap);
         setGapFor(d.gapFor);
