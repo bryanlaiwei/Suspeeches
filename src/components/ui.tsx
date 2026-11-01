@@ -218,39 +218,6 @@ export function Textarea(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return <textarea {...props} className={cx(field, props.className)} />;
 }
 
-/** Speech bubble; `tail` points down (NPC) or up (you). */
-export function Bubble({
-  children,
-  tone = "white",
-  tail = "down",
-  className = "",
-}: {
-  children: ReactNode;
-  tone?: "white" | "green" | "lav";
-  tail?: "down" | "up" | "none";
-  className?: string;
-}) {
-  const bg = tone === "green" ? "var(--green)" : tone === "lav" ? "var(--lav)" : "#fff";
-  return (
-    <div
-      className={cx(
-        "relative rounded-3xl px-6 py-4 text-center text-lg font-extrabold leading-snug",
-        tone === "green" ? "text-white shadow-[0_4px_0_var(--green-dark)]" : "text-ink shadow-[0_4px_0_var(--lav-2)]",
-        className,
-      )}
-      style={{ background: bg }}
-    >
-      {children}
-      {tail !== "none" && (
-        <span
-          className="absolute left-1/2 h-4 w-4 -translate-x-1/2 rotate-45"
-          style={{ background: bg, [tail === "down" ? "bottom" : "top"]: -8 }}
-        />
-      )}
-    </div>
-  );
-}
-
 export function FictionNote({ className = "", onDark = false }: { className?: string; onDark?: boolean }) {
   return (
     <p className={cx("text-xs font-semibold leading-relaxed", onDark ? "text-white/70" : "text-muted", className)}>
@@ -264,13 +231,4 @@ export function suspicionColor(v: number): string {
   if (v < 40) return "var(--green)";
   if (v < 70) return "var(--yellow)";
   return "var(--red)";
-}
-
-/** Sparkle decoration for purple screens. */
-export function Sparkle({ className = "", color = "#d4f33a", size = 28 }: { className?: string; color?: string; size?: number }) {
-  return (
-    <svg viewBox="0 0 24 24" width={size} height={size} className={cx("animate-sus-twinkle absolute", className)} aria-hidden>
-      <path d="M12 0c1 6 6 11 12 12-6 1-11 6-12 12-1-6-6-11-12-12 6-1 11-6 12-12Z" fill={color} />
-    </svg>
-  );
 }

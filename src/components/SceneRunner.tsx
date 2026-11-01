@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/client/api";
 import { playCaught, playRelief, playSpike, playSurvived, unlockAudio } from "@/lib/client/sound";
 import type { SetupDraft } from "@/lib/client/storage";
-import { castFor, type CastMember } from "@/lib/presets";
+import { castFor, presetFor, type CastMember } from "@/lib/presets";
 import { parseSegments } from "@/lib/voiceTags";
 import { SetupSchema, type Profile, type Setup } from "@/lib/schemas";
 import { SILENCE_FIRST_SEC, SILENCE_REPEAT_SEC, SPIKE_DELTA, START_SUSPICION } from "@/lib/scoring";
@@ -472,6 +472,17 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
   const lastAgentAt = [...lines].reverse().find((l) => l.role === "agent")?.tSec;
   const agentBurst = lines.filter((l) => l.role === "agent" && l.tSec === lastAgentAt);
   const npcShown = agentBurst.find((l) => l.speaker && l.speaker === activeSpeaker) ?? agentBurst.at(-1) ?? null;
+  const youSpeaking = userTalking && !npcTalking;
+  const userLatest = !!lastUser && (!npcShown || lastUser.id > npcShown.id);
+  const caption = youSpeaking
+    ? { speaker: "You", text: "…", you: true }
+    : userLatest && lastUser
+      ? { speaker: "You", text: lastUser.text, you: true }
+      : npcShown
+        ? { speaker: npcShown.speaker || cast[0].name, text: npcShown.text, you: false }
+        : null;
+  const sceneLabel = presetFor(setup.scenarioId).label;
+  const callTitle = isGroup ? sceneLabel : `${sceneLabel} · ${cast[0].name}`;
 
   if (phase === "briefing" || (phase === "error" && !hasSession)) {
     return (
@@ -498,14 +509,14 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
   return (
     <>
       <CallStage
+        title={callTitle}
+        you={setup.alias}
         cast={cast}
         suspicion={suspicion}
         suspicionBy={state?.suspicionBy ?? null}
         active={npcTalking ? (isGroup ? activeSpeaker : cast[0].name) : null}
-        npcLine={npcShown?.text ?? null}
-        npcSpeaker={npcShown?.speaker ?? null}
-        userLine={lastUser?.text ?? null}
-        userTalking={userTalking && !npcTalking}
+        caption={caption}
+        userTalking={youSpeaking}
         remaining={remaining}
         pop={lastDelta}
         getLevel={getLevel}
@@ -582,7 +593,9 @@ function Briefing({
           </div>
         </dl>
         <p className="mt-4 text-sm font-bold text-muted">
-          Use headphones so {npcName} can&apos;t hear themself. Suspicion hits 100 and you&apos;re caught.
+          {cast.length > 1
+            ? "The bar over each person's head shows how suspicious they are of you. If anyone hits 100%, you're caught."
+            : `The bar over ${cast[0].name}'s head shows how suspicious they are of you. If it hits 100%, you're caught.`}
         </p>
         {error && <p className="mt-3 rounded-2xl bg-red/10 px-4 py-3 text-sm font-bold text-red">{error}</p>}
         <div className="mt-5 flex gap-3">
