@@ -45,7 +45,7 @@ export const PRESETS: ScenarioPreset[] = [
 /** Group scenes: one ElevenLabs agent voices several characters (multi-voice). */
 export const PARTY_PRESET: ScenarioPreset = {
   id: "party",
-  label: "Startup interview (panel)",
+  label: "Startup interview",
   character: "Maya, Theo & Jordan",
   title: "Interview panel at Lumen",
   blurb: "A CTO, a CEO and a design lead interview you at once. Three people, one cover story.",
