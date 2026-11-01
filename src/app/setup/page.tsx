@@ -12,7 +12,7 @@ import { gapKeyFor, loadSetupDraft, saveSetupDraft, type SetupDraft } from "@/li
 import { castFor, CUSTOM_PRESET, GROUP_PRESET, PARTY_CAST, PARTY_PRESET, PRESETS, presetFor, VOICES } from "@/lib/presets";
 import { ScenarioIdSchema, SetupSchema, type GapResult, type Profile, type ScenarioId } from "@/lib/schemas";
 
-const TIME_OPTIONS = [60, 300, 600];
+const TIME_OPTIONS = [150, 300, 600];
 
 export default function SetupPage() {
   return (
