@@ -39,6 +39,11 @@ export async function buildDebrief(s: Session): Promise<Debrief> {
             outcome,
             end_reason: endReason,
             final_suspicion: s.suspicion,
+            by_character: s.suspicionBy
+              ? `\nEach character's final suspicion: ${Object.entries(s.suspicionBy)
+                  .map(([n, v]) => `${n} ${v}`)
+                  .join(", ")}${s.caughtBy ? `. ${s.caughtBy} caught them.` : ""}`
+              : "",
             larp_gap: s.gap.gapScore,
             judged_turns: formatJudged(s.events),
             transcript: formatTranscript(s.transcript, characterName(s.setup), 200),
@@ -93,6 +98,8 @@ export async function buildDebrief(s: Session): Promise<Debrief> {
     outcome,
     endReason,
     finalSuspicion: s.suspicion,
+    ...(s.suspicionBy ? { finalByCharacter: { ...s.suspicionBy } } : {}),
+    ...(s.caughtBy ? { caughtBy: s.caughtBy } : {}),
     averageSuspicion: Math.round(averageSuspicion),
     headline: raw.headline,
     spikes,

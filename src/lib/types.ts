@@ -34,6 +34,16 @@ export interface DeliverySignals {
   longPause: boolean;
 }
 
+export interface CharacterReaction {
+  name: string;
+  /** Applied change and resulting suspicion for this character. */
+  delta: number;
+  suspicion: number;
+  judgeDelta?: number;
+  reason?: string;
+  adjustments?: string[];
+}
+
 /** A judged user turn or a silence penalty, as shown on the bar / timeline. */
 export interface SuspicionEvent {
   kind: "turn" | "silence";
@@ -46,6 +56,8 @@ export interface SuspicionEvent {
   judgeDelta?: number;
   /** How the judge's delta became the applied one, e.g. ["×1.40 larp gap", "−10 cleared up the last doubt"]. */
   adjustments?: string[];
+  /** Group scenes: each character's own reaction. Top-level delta/suspicion then describe the most alarmed one. */
+  perCharacter?: CharacterReaction[];
   suspicion: number;
   reasons: string[];
   categories: JudgeResult["categories"];
@@ -64,6 +76,10 @@ export interface Debrief {
   outcome: "survived" | "caught";
   endReason: EndReason;
   finalSuspicion: number;
+  /** Group scenes: each character's final suspicion. */
+  finalByCharacter?: Record<string, number>;
+  /** Group scenes: who caught the player, if anyone. */
+  caughtBy?: string;
   averageSuspicion: number;
   headline: string;
   spikes: { turnIndex: number; tSec: number; delta: number; suspicion: number; reason: string }[];
@@ -81,7 +97,12 @@ export interface PublicSessionState {
   id: string;
   status: SessionStatus;
   endReason: EndReason | null;
+  /** Overall suspicion: in group scenes, the most suspicious character's bar. */
   suspicion: number;
+  /** Group scenes: each character's bar (null for 1-on-1). */
+  suspicionBy: Record<string, number> | null;
+  /** Group scenes: the character whose bar hit 100. */
+  caughtBy: string | null;
   events: SuspicionEvent[];
   claims: ClaimState[];
   transcript: Turn[];
@@ -110,7 +131,14 @@ export interface SilenceResponse {
 }
 
 export type VoiceConnection =
-  | { mode: "elevenlabs"; conversationToken: string; dynamicVariables: Record<string, string>; overrides?: NpcOverrides }
+  | {
+      mode: "elevenlabs";
+      /** WebRTC token (1-on-1 scenes) or WebSocket signed URL (group scenes, which need playback timing). */
+      conversationToken?: string;
+      signedUrl?: string;
+      dynamicVariables: Record<string, string>;
+      overrides?: NpcOverrides;
+    }
   | { mode: "mock"; firstMessage: string; lines: string[] };
 
 /** Only the custom agent uses overrides (voice); everything else goes through dynamic variables. */

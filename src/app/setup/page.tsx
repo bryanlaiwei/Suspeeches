@@ -30,8 +30,8 @@ function SetupPageInner() {
   const [group, setGroup] = useState<{ setting: string; characters: GroupChar[] }>({
     setting: "",
     characters: [
-      { name: "", personality: "", voiceId: VOICES[0].id },
-      { name: "", personality: "", voiceId: VOICES[1].id },
+      { name: "", personality: "", expertise: "", voiceId: VOICES[0].id },
+      { name: "", personality: "", expertise: "", voiceId: VOICES[1].id },
     ],
   });
   const [alias, setAlias] = useState("");
@@ -51,7 +51,7 @@ function SetupPageInner() {
   useEffect(() => {
     void fetchProfile().then((p) => {
       if (!p) {
-        router.replace("/");
+        router.replace("/account");
         return;
       }
       const d = loadSetupDraft();
@@ -59,7 +59,7 @@ function SetupPageInner() {
       setAlias(d?.alias || p.name);
       if (d?.scenarioId && ScenarioIdSchema.safeParse(d.scenarioId).success) setScenarioId(d.scenarioId);
       if (d?.custom) setCustom({ ...d.custom, setting: d.custom.setting ?? "" });
-      if (d?.group) setGroup(d.group);
+      if (d?.group) setGroup({ ...d.group, characters: d.group.characters.map((c) => ({ ...c, expertise: c.expertise ?? "" })) });
       if (d?.claims?.length) setClaims(d.claims);
       if (d?.goal) setGoal(d.goal);
       if (d?.timeLimitSec) setTimeLimitSec(d.timeLimitSec);
@@ -168,7 +168,17 @@ function SetupPageInner() {
   if (!profile) return null;
 
   return (
-    <Shell step={2}>
+    <Shell step={1}>
+      <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-line bg-panel/60 px-4 py-2.5 text-sm">
+        <span className="text-muted">Playing as the real</span>
+        <span className="font-semibold">{profile.name}</span>
+        <span className="text-muted">
+          · {[profile.role, profile.yearsExperience ? `${profile.yearsExperience} yrs` : ""].filter(Boolean).join(", ")}
+        </span>
+        <Link href="/account" className="ml-auto text-xs text-brand hover:underline">
+          Edit profile
+        </Link>
+      </div>
       <div className="grid gap-6 lg:grid-cols-[1.35fr_1fr]">
         <div className="space-y-6">
           <Card>
@@ -346,7 +356,7 @@ function SetupPageInner() {
                 {!profile.email && (
                   <>
                     {" "}
-                    (<Link href="/" className="underline">add an email</Link> first)
+                    (<Link href="/account" className="underline">add an email</Link> first)
                   </>
                 )}
               </span>
@@ -402,7 +412,7 @@ function SetupPageInner() {
 
 const ALL_SCENES = [...PRESETS, PARTY_PRESET, CUSTOM_PRESET, GROUP_PRESET];
 
-type GroupChar = { name: string; personality: string; voiceId: string };
+type GroupChar = { name: string; personality: string; expertise: string; voiceId: string };
 
 /** Builder for a custom group scene: 2-3 characters, each with their own voice. */
 function GroupBuilder({
@@ -449,6 +459,12 @@ function GroupBuilder({
               onChange={(e) => setChar(i, { personality: e.target.value })}
               placeholder="A retired airline captain. Warm, nosy, loves shop talk."
             />
+            <Input
+              className="sm:col-span-2"
+              value={c.expertise}
+              onChange={(e) => setChar(i, { expertise: e.target.value })}
+              placeholder="Knows a lot about… (e.g. aviation, airline operations)"
+            />
           </div>
           {group.characters.length > 2 && (
             <button
@@ -471,7 +487,7 @@ function GroupBuilder({
               ...group,
               characters: [
                 ...group.characters,
-                { name: "", personality: "", voiceId: VOICES.find((v) => !used.has(v.id))?.id ?? VOICES[0].id },
+                { name: "", personality: "", expertise: "", voiceId: VOICES.find((v) => !used.has(v.id))?.id ?? VOICES[0].id },
               ],
             })
           }

@@ -20,7 +20,7 @@ Called themself "{{alias}}" and claimed:
 
 <result>
 Outcome: {{outcome}} (end reason: {{end_reason}})
-Final suspicion: {{final_suspicion}} / 100
+Final suspicion: {{final_suspicion}} / 100{{by_character}}
 Larp gap: {{larp_gap}} / 100
 </result>
 

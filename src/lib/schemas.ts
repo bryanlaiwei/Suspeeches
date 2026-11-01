@@ -28,7 +28,15 @@ export type CustomCharacter = z.infer<typeof CustomCharacterSchema>;
 export const GroupSchema = z
   .object({
     setting: z.string().trim().max(300).default(""),
-    characters: z.array(CustomCharacterSchema.omit({ setting: true })).min(2).max(3),
+    characters: z
+      .array(
+        CustomCharacterSchema.omit({ setting: true }).extend({
+          /** What they know well enough to catch a faker. */
+          expertise: z.string().trim().max(200).default(""),
+        }),
+      )
+      .min(2)
+      .max(3),
   })
   .refine((g) => new Set(g.characters.map((c) => c.voiceId)).size === g.characters.length, {
     message: "Give each character a different voice",
@@ -71,6 +79,8 @@ export const JudgeResultSchema = z.object({
   }),
   claims_status: z.array(z.object({ claim: z.string(), status: ClaimStatusSchema })),
   next_probe: z.string(),
+  /** Group scenes: each listener's own reaction (empty for 1-on-1 scenes). */
+  listeners: z.array(z.object({ name: z.string(), delta: z.number().int().min(-15).max(25), reason: z.string() })),
 });
 export type JudgeResult = z.infer<typeof JudgeResultSchema>;
 
@@ -89,6 +99,7 @@ export const JudgeRawSchema = z.object({
   }),
   claims_status: z.array(z.object({ claim: z.string(), status: ClaimStatusSchema })),
   next_probe: z.string(),
+  listeners: z.array(z.object({ name: z.string(), delta: z.number(), reason: z.string() })),
 });
 export type JudgeRaw = z.infer<typeof JudgeRawSchema>;
 

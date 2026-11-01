@@ -4,7 +4,8 @@ import { startDebrief } from "./debrief";
 import type { Owner } from "./supabase-server";
 import { judgeTurn, npcHintFor } from "./judge";
 import type { GapResult, Profile, Setup, Timing } from "./schemas";
-import { moodNote } from "./mood";
+import { groupMoodNote, moodNote } from "./mood";
+import { castFor } from "./presets";
 import {
   appliedDelta,
   applyDelta,
@@ -19,6 +20,7 @@ import {
 } from "./scoring";
 import { deliverySignals } from "./timing";
 import type {
+  CharacterReaction,
   ClaimState,
   Debrief,
   EndReason,
@@ -55,6 +57,11 @@ export interface Session {
   queue: Promise<unknown>;
   /** Tone the NPC was last told to use. */
   mood: Mood;
+  /** Group scenes: each character's suspicion and mood (null for 1-on-1). */
+  suspicionBy: Record<string, number> | null;
+  moodBy: Record<string, Mood> | null;
+  /** Group scenes: the character whose bar hit 100. */
+  caughtBy: string | null;
   /** Current silence on the player's turn: when it started and how many penalties it has cost. */
   silence: { sinceSec: number; strikes: number } | null;
   silenceCount: number;
@@ -90,6 +97,8 @@ export function createSession(profile: Profile, setup: Setup, gap: GapResult, ap
     owner,
     queue: Promise.resolve(),
     mood: moodFor(START_SUSPICION),
+    ...groupState(setup),
+    caughtBy: null,
     silence: null,
     silenceCount: 0,
   };
@@ -136,9 +145,21 @@ export async function addEvent(
     // The scene may have ended while the judge was thinking.
     if (s.status !== "live") return null;
 
-    const { delta, notes } = appliedDelta(result.delta, s.gap.gapScore, scoreHistory(s));
-    s.suspicion = applyDelta(s.suspicion, delta);
     s.claims = result.claims_status;
+    let delta: number;
+    let notes: string[] = [];
+    let perCharacter: CharacterReaction[] | undefined;
+    if (s.suspicionBy) {
+      // Group: each listener has their own bar, scored on what they can actually judge.
+      perCharacter = result.listeners.map((l) => {
+        const applied = appliedDelta(l.delta, s.gap.gapScore, scoreHistory(s, l.name));
+        return { name: l.name, judgeDelta: l.delta, reason: l.reason, adjustments: applied.notes, ...applyTo(s, l.name, applied.delta) };
+      });
+      delta = biggestMove(perCharacter);
+    } else {
+      ({ delta, notes } = appliedDelta(result.delta, s.gap.gapScore, scoreHistory(s)));
+      s.suspicion = applyDelta(s.suspicion, delta);
+    }
     const event: SuspicionEvent = {
       kind: "turn",
       turnIndex: userTurn.index,
@@ -146,6 +167,7 @@ export async function addEvent(
       delta,
       judgeDelta: result.delta,
       adjustments: notes,
+      perCharacter,
       suspicion: s.suspicion,
       reasons: result.reasons,
       categories: result.categories,
@@ -153,7 +175,7 @@ export async function addEvent(
       degraded,
     };
     s.events.push(event);
-    if (s.suspicion >= CAUGHT_AT) finish(s, "caught", userTurn.tSec);
+    if (s.suspicion >= CAUGHT_AT) caught(s, userTurn.tSec);
     return { event, nextProbe: result.next_probe, npcHint: npcHintFor(result.next_probe) };
   });
   s.queue = job.catch(() => undefined);
@@ -177,41 +199,83 @@ export async function addSilence(s: Session, silentSinceSec: number, tSec: numbe
   const delta = silencePenalty(s.silence.strikes);
   s.silence.strikes++;
   s.silenceCount++;
-  s.suspicion = applyDelta(s.suspicion, delta);
+  // Everyone notices silence.
+  const perCharacter = s.suspicionBy ? Object.keys(s.suspicionBy).map((name) => ({ name, ...applyTo(s, name, delta) })) : undefined;
+  if (!perCharacter) s.suspicion = applyDelta(s.suspicion, delta);
   const event: SuspicionEvent = {
     kind: "silence",
     turnIndex: -s.silenceCount,
     tSec,
     delta,
+    perCharacter,
     suspicion: s.suspicion,
     reasons: [`You went quiet for ${silentFor} seconds when it was your turn.`],
     categories: { consistency: 5, specificity: 0, plausibility: 5, delivery: 0 },
     quote: `(${silentFor} s of silence)`,
   };
   s.events.push(event);
-  if (s.suspicion >= CAUGHT_AT) finish(s, "caught", tSec);
+  if (s.suspicion >= CAUGHT_AT) caught(s, tSec);
   return { state: toPublic(s), event, npcMood: npcNote(s) };
 }
 
 /** Recent scoring history for streaks and redemption (silence penalties count as bad turns). */
-function scoreHistory(s: Session): ScoreHistory {
+function scoreHistory(s: Session, character?: string): ScoreHistory {
+  // For a group character, their own past deltas; otherwise the overall ones.
+  const deltas = s.events.map((e) => (character ? (e.perCharacter?.find((p) => p.name === character)?.delta ?? 0) : e.delta));
   const streak = (bad: boolean) => {
     let n = 0;
-    for (let i = s.events.length - 1; i >= 0 && (bad ? s.events[i].delta > 0 : s.events[i].delta < 0); i--) n++;
+    for (let i = deltas.length - 1; i >= 0 && (bad ? deltas[i] > 0 : deltas[i] < 0); i--) n++;
     return n;
   };
-  return { lastDelta: s.events.at(-1)?.delta ?? null, badStreak: streak(true), goodStreak: streak(false) };
+  return { lastDelta: deltas.at(-1) ?? null, badStreak: streak(true), goodStreak: streak(false) };
+}
+
+/** Group scenes start everyone at the same suspicion. */
+function groupState(setup: Setup): Pick<Session, "suspicionBy" | "moodBy"> {
+  const cast = castFor(setup);
+  if (cast.length < 2) return { suspicionBy: null, moodBy: null };
+  return {
+    suspicionBy: Object.fromEntries(cast.map((c) => [c.name, START_SUSPICION])),
+    moodBy: Object.fromEntries(cast.map((c) => [c.name, moodFor(START_SUSPICION)])),
+  };
+}
+
+/** Apply a change to one character's bar; the overall bar is the most suspicious character. */
+function applyTo(s: Session, name: string, delta: number): { delta: number; suspicion: number } {
+  const by = s.suspicionBy!;
+  by[name] = applyDelta(by[name] ?? START_SUSPICION, delta);
+  s.suspicion = Math.max(...Object.values(by));
+  return { delta, suspicion: by[name] };
+}
+
+/** The headline move for a group turn: whichever character's bar moved the most. */
+function biggestMove(per: CharacterReaction[]): number {
+  return per.reduce((best, p) => (Math.abs(p.delta) > Math.abs(best) ? p.delta : best), 0);
+}
+
+/** One bar at 100 is enough: whoever is most certain ends the scene. */
+function caught(s: Session, tSec: number) {
+  if (s.suspicionBy) {
+    s.caughtBy = Object.entries(s.suspicionBy).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+  }
+  finish(s, "caught", tSec);
 }
 
 /** Note for the NPC after a suspicion change: "end the call" when caught, a new mood, or nothing. */
 function npcNote(s: Session): string | null {
-  if (s.status === "caught") return moodNote("caught") || null;
+  if (s.status === "caught") return (s.caughtBy ? groupMoodNote({ caughtBy: s.caughtBy }) : moodNote("caught")) || null;
   return moodChange(s);
 }
 
 /** Contextual-update text when suspicion moved the NPC into a new mood band, else null. */
 function moodChange(s: Session): string | null {
   if (s.status !== "live") return null;
+  if (s.suspicionBy && s.moodBy) {
+    const next = Object.fromEntries(Object.entries(s.suspicionBy).map(([n, v]) => [n, moodFor(v)])) as Record<string, Mood>;
+    if (Object.entries(next).every(([n, m]) => s.moodBy![n] === m)) return null;
+    s.moodBy = next;
+    return groupMoodNote({ moods: next }) || null;
+  }
   const mood = moodFor(s.suspicion);
   if (mood === s.mood) return null;
   s.mood = mood;
@@ -241,6 +305,8 @@ export function toPublic(s: Session): PublicSessionState {
     status: s.status,
     endReason: s.endReason,
     suspicion: s.suspicion,
+    suspicionBy: s.suspicionBy,
+    caughtBy: s.caughtBy,
     events: s.events,
     claims: s.claims,
     transcript: s.transcript,

@@ -65,12 +65,13 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
   /** Next silence report we owe the server for the current silent stretch. */
   const silenceDue = useRef<{ since: number; strikes: number } | null>(null);
   /** Who is talking: segments of the current agent response (by spoken length) and chars played so far. */
-  const speech = useRef<{ buffer: string; segments: { name: string; len: number }[]; spoken: number; active: string | null }>({
-    buffer: "",
-    segments: [],
-    spoken: 0,
-    active: null,
-  });
+  const speech = useRef<{
+    buffer: string;
+    segments: { name: string; len: number }[];
+    spoken: number;
+    active: string | null;
+    timers: ReturnType<typeof setTimeout>[];
+  }>({ buffer: "", segments: [], spoken: 0, active: null, timers: [] });
 
   const elapsed = () => (startedAt.current ? (performance.now() - startedAt.current) / 1000 : 0);
 
@@ -93,8 +94,12 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
     },
     onModeChange: ({ mode }) => {
       npcSpeaking.current = mode === "speaking";
+      // Fallback until playback timings arrive (and for 1-on-1 scenes).
       if (mode === "speaking" && !speech.current.active) setActive(speech.current.segments[0]?.name ?? cast[0].name);
       if (mode === "listening") {
+        // Keep the segment map (playback can pause mid-response); just drop pending face switches.
+        speech.current.timers.forEach(clearTimeout);
+        speech.current.timers = [];
         setActive(null);
         // eslint-disable-next-line react-hooks/purity -- SDK event callback, not render
         agentStoppedAt.current = performance.now();
@@ -109,22 +114,48 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
     // Raw LLM text streams in before the audio, tags included: map out who says what.
     onAgentChatResponsePart: ({ text, type }) => {
       const sp = speech.current;
-      if (type === "start") Object.assign(sp, { buffer: "", segments: [], spoken: 0 });
+      if (type === "start") resetSpeech();
       else if (type === "delta") sp.buffer += text;
       sp.segments = speakerSegments(sp.buffer);
-      if (!sp.active && sp.segments[0]) setActive(sp.segments[0].name);
     },
-    // Audio arrives with character timings: advance through the segments as it plays.
-    onAudioAlignment: (alignment) => {
+    // Fires when each audio chunk STARTS PLAYING (WebSocket transport) with per-character timings:
+    // switch faces exactly at the character where the next speaker's part begins.
+    onAudioAlignmentPlayback: ({ alignment }) => {
       const sp = speech.current;
+      const startTimes = alignment.char_start_times_ms;
+      let prev: string | null = null;
+      alignment.chars.forEach((_, i) => {
+        const who = speakerAt(sp.spoken + i);
+        if (who && who !== prev) {
+          prev = who;
+          const delay = startTimes[i] ?? 0;
+          if (delay <= 0) setActive(who);
+          else sp.timers.push(setTimeout(() => setActive(who), delay));
+        }
+      });
       sp.spoken += alignment.chars.length;
-      let acc = 0;
-      for (const seg of sp.segments) {
-        acc += seg.len;
-        if (sp.spoken <= acc) return setActive(seg.name);
-      }
+    },
+    onInterruption: () => {
+      resetSpeech();
+      setActive(null);
     },
   });
+
+  function resetSpeech() {
+    const sp = speech.current;
+    sp.timers.forEach(clearTimeout);
+    Object.assign(sp, { buffer: "", segments: [], spoken: 0, timers: [] });
+  }
+
+  /** Which character is speaking at a given character offset of the current response. */
+  function speakerAt(offset: number): string | null {
+    let acc = 0;
+    for (const seg of speech.current.segments) {
+      acc += seg.len;
+      if (offset < acc) return seg.name;
+    }
+    return speech.current.segments.at(-1)?.name ?? null;
+  }
 
   /** Names for each tagged part of an agent response (untagged text belongs to the previous speaker). */
   function speakerSegments(text: string) {
@@ -191,7 +222,10 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
         setState(res.state);
         const judged = res.judged;
         if (!judged) return;
-        setLines((ls) => ls.map((l) => (l.id === id ? { ...l, delta: judged.event.delta, turnIndex: judged.event.turnIndex } : l)));
+        const breakdown = judged.event.perCharacter?.map((p) => ({ name: p.name, delta: p.delta }));
+        setLines((ls) =>
+          ls.map((l) => (l.id === id ? { ...l, delta: judged.event.delta, turnIndex: judged.event.turnIndex, breakdown } : l)),
+        );
         react(judged.event);
         if (res.state.status === "caught") return bust(res.npcMood);
         tellNpc(res.npcMood);
@@ -315,12 +349,12 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
 
       if (res.voice.mode === "elevenlabs") {
         await navigator.mediaDevices.getUserMedia({ audio: true });
-        conversation.startSession({
-          conversationToken: res.voice.conversationToken,
-          connectionType: "webrtc",
+        const common = {
           dynamicVariables: res.voice.dynamicVariables,
           ...(res.voice.overrides ? { overrides: res.voice.overrides } : {}),
-        });
+        };
+        if (res.voice.signedUrl) conversation.startSession({ signedUrl: res.voice.signedUrl, connectionType: "websocket", ...common });
+        else conversation.startSession({ conversationToken: res.voice.conversationToken!, connectionType: "webrtc", ...common });
       } else {
         beginLive();
         mockSpeak(res.voice.firstMessage);
@@ -436,7 +470,7 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
 
   if (phase === "briefing" || (phase === "error" && !hasSession)) {
     return (
-      <Shell step={3}>
+      <Shell step={2}>
         <Briefing
           setup={setup}
           npcName={isGroup ? preset.character : npcName}
@@ -451,7 +485,7 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
   }
 
   return (
-    <Shell step={3}>
+    <Shell step={2}>
       <div className="grid flex-1 gap-6 lg:grid-cols-[1.2fr_1fr]">
         <div className="relative flex flex-col items-center">
           <div className="mb-4 flex w-full items-center justify-between">
@@ -467,22 +501,36 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
             </div>
           </div>
 
-          <SuspicionBar
-            value={suspicion}
-            events={state?.events ?? []}
-            selected={selected}
-            onSelect={setSelected}
-            lastDelta={lastDelta}
-            shaking={shaking}
-          />
+          {isGroup ? (
+            <p className="text-center text-xs text-muted">
+              Everyone has their own suspicion bar. <span className="text-sus">If any one of them hits 100, you&apos;re caught.</span>
+            </p>
+          ) : (
+            <SuspicionBar
+              value={suspicion}
+              events={state?.events ?? []}
+              selected={selected}
+              onSelect={setSelected}
+              lastDelta={lastDelta}
+              shaking={shaking}
+            />
+          )}
           {selectedEvent && (
             <div className="absolute top-36 z-20 w-full max-w-md">
               <EventDetail event={selectedEvent} onClose={() => setSelected(null)} />
             </div>
           )}
-          <Stage cast={cast} active={activeSpeaker} suspicion={suspicion} getLevel={getLevel} shaking={shaking} />
+          <Stage
+            cast={cast}
+            active={activeSpeaker}
+            suspicion={suspicion}
+            suspicionBy={state?.suspicionBy ?? null}
+            lastEvent={state?.events.at(-1) ?? null}
+            getLevel={getLevel}
+            shaking={shaking}
+          />
           <div className="mt-1 text-center">
-            {phase === "live" && (
+            {phase === "live" && !isGroup && (
               <div className="mt-1 text-xs text-muted">
                 Mood: <span className={cx("font-semibold", MOOD_COLOR[mood])}>{mood}</span>
               </div>
@@ -491,7 +539,7 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
 
           <div className="mt-5 flex items-center gap-3">
             {phase === "connecting" && <StatusPill tone="muted">Connecting to {npcName}…</StatusPill>}
-            {busted && phase === "live" && <StatusPill tone="sus">Busted. {npcName} is ending the call…</StatusPill>}
+            {busted && phase === "live" && <StatusPill tone="sus">Busted. {state?.caughtBy ?? npcName} is ending the call…</StatusPill>}
             {silenceWarning && (
               <StatusPill tone="warn">
                 {npcName} is waiting… {Math.max(0, Math.ceil(nextSilenceAt(silentFor) - silentFor))}s
@@ -528,7 +576,7 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
         </Card>
       </div>
 
-      {phase === "ended" && ending && <EndOverlay reason={ending} npcName={npcName} />}
+      {phase === "ended" && ending && <EndOverlay reason={ending} npcName={state?.caughtBy ?? npcName} />}
     </Shell>
   );
 }

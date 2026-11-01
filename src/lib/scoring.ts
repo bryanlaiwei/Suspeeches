@@ -75,8 +75,12 @@ export function appliedDelta(judgeDelta: number, gapScore: number, h: ScoreHisto
   return { delta, notes };
 }
 
-/** Coerce raw model output into the strict judge contract (clamps every number). */
-export function normalizeJudge(raw: JudgeRaw, claims: string[]): JudgeResult {
+/**
+ * Coerce raw model output into the strict judge contract (clamps every number).
+ * `listenerNames` (group scenes) are the characters who must each get a delta, in stage order.
+ */
+export function normalizeJudge(raw: JudgeRaw, claims: string[], listenerNames: string[] = []): JudgeResult {
+  const byListener = new Map(raw.listeners.map((l) => [l.name.trim().toLowerCase(), l]));
   const c = (n: number) => clamp(Math.round(Number.isFinite(n) ? n : 5), 0, 10);
   const byClaim = new Map(raw.claims_status.map((s) => [s.claim.trim().toLowerCase(), s.status]));
   return {
@@ -97,6 +101,10 @@ export function normalizeJudge(raw: JudgeRaw, claims: string[]): JudgeResult {
       status: byClaim.get(claim.trim().toLowerCase()) ?? raw.claims_status[i]?.status ?? "untested",
     })),
     next_probe: raw.next_probe.trim(),
+    listeners: listenerNames.map((name) => {
+      const l = byListener.get(name.toLowerCase());
+      return { name, delta: clampDelta(l ? l.delta : raw.delta), reason: l?.reason.trim() || "" };
+    }),
   };
 }
 

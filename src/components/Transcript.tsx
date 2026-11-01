@@ -9,6 +9,8 @@ export interface LiveLine {
   role: "user" | "agent" | "system";
   /** Character name for agent lines in group scenes. */
   speaker?: string;
+  /** Group scenes: each character's reaction to this user line. */
+  breakdown?: { name: string; delta: number }[];
   text: string;
   tSec: number;
   /** undefined = not a judged line; null = judging; number = delta */
@@ -85,7 +87,11 @@ export function Transcript({
                   typeof l.delta === "number" && l.delta <= 0 && "bg-clean/15 text-clean hover:bg-clean/25",
                 )}
               >
-                {l.delta === null ? "judging…" : `${l.delta > 0 ? "+" : ""}${l.delta} suspicion`}
+                {l.delta === null
+                  ? "judging…"
+                  : l.breakdown?.length
+                    ? l.breakdown.map((b) => `${b.name} ${b.delta > 0 ? "+" : ""}${b.delta}`).join(" · ")
+                    : `${l.delta > 0 ? "+" : ""}${l.delta} suspicion`}
               </button>
             )}
           </div>

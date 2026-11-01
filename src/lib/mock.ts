@@ -9,7 +9,13 @@ import type { DeliverySignals } from "./types";
 const HEDGES = /\b(i think|i guess|maybe|probably|stuff|things|whatever|not sure|kind of|sort of)\b/gi;
 const SPECIFIC = /\b(\d+|percent|million|thousand|kubernetes|postgres|python|react|aws|q[1-4]|20\d\d)\b/gi;
 
-export function mockJudge(text: string, signals: DeliverySignals, claims: string[], turnNo: number): JudgeRaw {
+export function mockJudge(
+  text: string,
+  signals: DeliverySignals,
+  claims: string[],
+  turnNo: number,
+  listeners: { name: string; expertise: string }[] = [],
+): JudgeRaw {
   const hedges = (text.match(HEDGES) ?? []).length;
   const specifics = (text.match(SPECIFIC) ?? []).length;
   let delta = 2 + hedges * 4 + signals.fillerCount * 3 - specifics * 4;
@@ -34,6 +40,12 @@ export function mockJudge(text: string, signals: DeliverySignals, claims: string
     claims_status: claims.map((claim, i) => ({
       claim,
       status: i < tested ? (delta > 8 ? "shaky" : "held") : "untested",
+    })),
+    // Mock "expertise": the first listener reacts fully, the others at a third of the strength.
+    listeners: listeners.map((l, i) => ({
+      name: l.name,
+      delta: i === 0 ? delta : Math.round(delta / 3),
+      reason: i === 0 ? `${l.name} knows this area well.` : `Outside ${l.name}'s expertise.`,
     })),
     next_probe: claims[turnNo % claims.length]
       ? `Ask for a concrete example behind: "${claims[turnNo % claims.length]}".`

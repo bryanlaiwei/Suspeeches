@@ -37,8 +37,14 @@ export function UserMenu() {
   if (!authEnabled || !user) return null;
   return (
     <div className="flex items-center gap-3 text-xs text-muted">
+      <Link href="/setup" className="hover:text-ink">
+        Play
+      </Link>
       <Link href="/history" className="hover:text-ink">
         History
+      </Link>
+      <Link href="/account" className="hover:text-ink">
+        Profile
       </Link>
       <span className="hidden max-w-[180px] truncate sm:inline" title={user.email ?? ""}>
         {user.email}

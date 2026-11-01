@@ -14,7 +14,7 @@ import { useAnimatedNumber } from "@/components/useAnimatedNumber";
 import { api } from "@/lib/client/api";
 import { supabase } from "@/lib/client/supabase";
 import { fmtTime } from "@/lib/context";
-import { CUSTOM_PRESET, presetFor } from "@/lib/presets";
+import { castFor, CUSTOM_PRESET, presetFor } from "@/lib/presets";
 import { START_SUSPICION } from "@/lib/scoring";
 import type { PublicSessionState } from "@/lib/types";
 
@@ -77,6 +77,7 @@ function Debrief() {
       tSec: t.tSec,
       speaker: t.speaker,
       delta: t.role === "user" ? (byTurn.get(t.index)?.delta ?? undefined) : undefined,
+      breakdown: byTurn.get(t.index)?.perCharacter?.map((p) => ({ name: p.name, delta: p.delta })),
       turnIndex: t.index,
     }));
     const silences: LiveLine[] = state.events
@@ -109,7 +110,7 @@ function Debrief() {
   if (error) return <Missing message={error} />;
   if (!state || !d) {
     return (
-      <Shell step={4}>
+      <Shell step={3}>
         <div className="flex flex-1 flex-col items-center justify-center gap-3 text-muted">
           <div className="h-10 w-10 animate-spin rounded-full border-4 border-line border-t-brand" />
           The handler is writing up your debrief…
@@ -121,10 +122,11 @@ function Debrief() {
   const caught = d.outcome === "caught";
   const preset = state.setup.scenarioId === "custom" ? CUSTOM_PRESET : presetFor(state.setup.scenarioId);
   const selectedEvent = state.events.find((e) => e.turnIndex === selected) ?? null;
+  const cast = castFor(state.setup);
   const spikeTurns = new Set(d.spikes.map((s) => s.turnIndex));
 
   return (
-    <Shell step={4}>
+    <Shell step={3}>
       {/* hero */}
       <div className="grid items-center gap-6 md:grid-cols-[auto_1fr_auto]">
         <div className="w-40">
@@ -139,6 +141,16 @@ function Debrief() {
             {caught ? "CAUGHT" : d.endReason === "left" ? "WALKED OUT" : "SURVIVED"}
           </div>
           <p className="mt-2 text-xl font-semibold">&ldquo;{d.headline}&rdquo;</p>
+          {d.finalByCharacter && (
+            <p className="mt-2 flex flex-wrap gap-3 text-sm">
+              {Object.entries(d.finalByCharacter).map(([name, v]) => (
+                <span key={name} className="rounded-full border border-line px-3 py-1">
+                  {name} <span className="font-mono font-bold" style={{ color: v >= 100 ? "var(--sus)" : v >= 60 ? "var(--warn)" : "var(--clean)" }}>{v}</span>
+                  {d.caughtBy === name && <span className="ml-1 text-sus">· caught you</span>}
+                </span>
+              ))}
+            </p>
+          )}
           <p className="mt-1 text-sm text-muted">
             {state.setup.alias} vs {state.scenarioName} · {fmtTime(d.durationSec)} on the clock ·{" "}
             {d.endReason === "npc_ended" ? `${state.scenarioName} ended the scene` : d.endReason === "timeout" ? "time ran out" : d.endReason}
@@ -173,6 +185,7 @@ function Debrief() {
               selected={selected}
               onSelect={setSelected}
               cursorSec={cursor}
+              series={cast.length > 1 ? cast.map((c) => ({ name: c.name, color: c.accent })) : undefined}
             />
             {selectedEvent ? (
               <div className="mt-3">
@@ -279,7 +292,7 @@ function Debrief() {
             <Link href="/setup" className="flex-1">
               <Button className="w-full">Run it back</Button>
             </Link>
-            <Link href="/">
+            <Link href="/account">
               <Button variant="ghost">Edit profile</Button>
             </Link>
           </div>
@@ -291,7 +304,7 @@ function Debrief() {
 
 function Missing({ message }: { message: string }) {
   return (
-    <Shell step={4}>
+    <Shell step={3}>
       <Card className="mx-auto mt-10 max-w-md text-center">
         <p className="mb-4 text-sm text-muted">{message}</p>
         <Link href="/setup">

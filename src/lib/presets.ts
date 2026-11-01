@@ -74,6 +74,8 @@ export interface CastMember {
   name: string;
   title: string;
   label: string;
+  /** What this character knows well enough to spot a faker (group scenes). */
+  expertise: string;
   skin: string;
   hair: string;
   accent: string;
@@ -81,9 +83,9 @@ export interface CastMember {
 }
 
 export const PARTY_CAST: CastMember[] = [
-  { name: "Maya", title: "CTO, hosting the party", label: "Maya", skin: "#f1c7a5", hair: "#1d1410", accent: "#f59f00", hairStyle: "bun" },
-  { name: "Theo", title: "Seed investor", label: "Theo", skin: "#e8b796", hair: "#8a6a4a", accent: "#7c5cff", hairStyle: "short" },
-  { name: "Jordan", title: "Product designer", label: "Jordan", skin: "#8d5a3b", hair: "#151515", accent: "#e64980", hairStyle: "curly" },
+  { name: "Maya", title: "CTO, hosting the party", label: "Maya", expertise: "software engineering, system design, infrastructure, engineering teams and hiring", skin: "#f1c7a5", hair: "#1d1410", accent: "#f59f00", hairStyle: "bun" },
+  { name: "Theo", title: "Seed investor", label: "Theo", expertise: "startup investing, fundraising, valuations, revenue and growth metrics, go-to-market", skin: "#e8b796", hair: "#8a6a4a", accent: "#7c5cff", hairStyle: "short" },
+  { name: "Jordan", title: "Product designer", label: "Jordan", expertise: "product and visual design, UX research, branding, design tools, creative agencies", skin: "#8d5a3b", hair: "#151515", accent: "#e64980", hairStyle: "curly" },
 ];
 
 const GROUP_LOOKS: Pick<CastMember, "skin" | "hair" | "accent" | "hairStyle">[] = [
@@ -139,11 +141,14 @@ export function castFor(setup: Pick<Setup, "scenarioId" | "custom" | "group">): 
       name: c.name,
       title: c.personality.split(/[.,]/)[0].slice(0, 40),
       label: voiceLabel(c.voiceId),
+      expertise: c.expertise || "nothing in particular (judges mostly on consistency and confidence)",
       ...GROUP_LOOKS[i % GROUP_LOOKS.length],
     }));
   }
   const p = presetFor(setup.scenarioId);
   const custom = setup.scenarioId === "custom" ? setup.custom : undefined;
   const { skin, hair, accent, hairStyle } = p;
-  return [{ name: custom?.name ?? p.character, title: custom ? "Custom character" : p.title, label: "", skin, hair, accent, hairStyle }];
+  return [
+    { name: custom?.name ?? p.character, title: custom ? "Custom character" : p.title, label: "", expertise: "", skin, hair, accent, hairStyle },
+  ];
 }

@@ -19,8 +19,8 @@ export function Logo({ className = "" }: { className?: string }) {
   );
 }
 
-export function Shell({ children, step }: { children: ReactNode; step?: 1 | 2 | 3 | 4 }) {
-  const steps = ["Profile", "Cover story", "Scene", "Debrief"];
+export function Shell({ children, step }: { children: ReactNode; step?: 1 | 2 | 3 }) {
+  const steps = ["Cover story", "Scene", "Debrief"];
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col px-4 pb-16 sm:px-6">
       <header className="flex items-center justify-between py-5">

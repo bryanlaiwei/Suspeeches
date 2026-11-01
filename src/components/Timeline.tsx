@@ -10,6 +10,7 @@ const PAD = { l: 34, r: 12, t: 14, b: 26 };
 
 /** Suspicion over time. Markers are clickable; spikes are labelled; optional replay cursor. */
 export function Timeline({
+  series,
   events,
   durationSec,
   spikeTurns,
@@ -23,6 +24,8 @@ export function Timeline({
   selected: number | null;
   onSelect: (turnIndex: number | null) => void;
   cursorSec?: number | null;
+  /** Group scenes: one line per character instead of a single overall line. */
+  series?: { name: string; color: string }[];
 }) {
   const dur = Math.max(durationSec, events.at(-1)?.tSec ?? 0, 10);
   const x = (t: number) => PAD.l + (t / dur) * (W - PAD.l - PAD.r);
@@ -37,6 +40,24 @@ export function Timeline({
   }
   d += ` L${x(dur)} ${y(prev)}`;
   const area = `${d} L${x(dur)} ${y(0)} L${x(0)} ${y(0)} Z`;
+
+  // Per-character step lines (group scenes).
+  const lines = (series ?? []).map((s) => {
+    let p = `M${x(0)} ${y(START_SUSPICION)}`;
+    let v = START_SUSPICION;
+    for (const e of events) {
+      const r = e.perCharacter?.find((c) => c.name === s.name);
+      if (!r) continue;
+      p += ` L${x(e.tSec)} ${y(v)} L${x(e.tSec)} ${y(r.suspicion)}`;
+      v = r.suspicion;
+    }
+    return { ...s, d: `${p} L${x(dur)} ${y(v)}` };
+  });
+  // Markers sit on the line of whoever moved most at that moment.
+  const markerY = (e: SuspicionEvent) => {
+    const top = e.perCharacter?.length ? e.perCharacter.reduce((a, b) => (Math.abs(b.delta) > Math.abs(a.delta) ? b : a)) : null;
+    return y(top ? top.suspicion : e.suspicion);
+  };
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="Suspicion over time">
@@ -60,8 +81,26 @@ export function Timeline({
           {fmtTime(dur * f)}
         </text>
       ))}
-      <path d={area} fill="url(#tl-fill)" />
-      <path d={d} fill="none" stroke="#f3f1ff" strokeWidth="2" strokeLinejoin="round" />
+      {lines.length ? (
+        <>
+          {lines.map((l) => (
+            <path key={l.name} d={l.d} fill="none" stroke={l.color} strokeWidth="2.5" strokeLinejoin="round" />
+          ))}
+          {lines.map((l, i) => (
+            <g key={`legend-${l.name}`}>
+              <rect x={PAD.l + 8 + i * 90} y={PAD.t + 4} width="12" height="4" rx="2" fill={l.color} />
+              <text x={PAD.l + 24 + i * 90} y={PAD.t + 9} fontSize="10" fill="#f3f1ff">
+                {l.name}
+              </text>
+            </g>
+          ))}
+        </>
+      ) : (
+        <>
+          <path d={area} fill="url(#tl-fill)" />
+          <path d={d} fill="none" stroke="#f3f1ff" strokeWidth="2" strokeLinejoin="round" />
+        </>
+      )}
       {cursorSec != null && (
         <line x1={x(cursorSec)} x2={x(cursorSec)} y1={PAD.t} y2={H - PAD.b} stroke="#8b5cf6" strokeWidth="2" />
       )}
@@ -71,17 +110,17 @@ export function Timeline({
         const fill = e.delta >= 10 ? "#ff3b5c" : e.delta > 0 ? "#ffb020" : "#2ee6a6";
         return (
           <g key={e.turnIndex} className="cursor-pointer" onClick={() => onSelect(selected === e.turnIndex ? null : e.turnIndex)}>
-            <circle cx={x(e.tSec)} cy={y(e.suspicion)} r={r + 6} fill="transparent" />
+            <circle cx={x(e.tSec)} cy={markerY(e)} r={r + 6} fill="transparent" />
             <circle
               cx={x(e.tSec)}
-              cy={y(e.suspicion)}
+              cy={markerY(e)}
               r={r}
               fill={fill}
               stroke={selected === e.turnIndex ? "#f3f1ff" : "#0b0b12"}
               strokeWidth={selected === e.turnIndex ? 3 : 2}
             />
             {spike && (
-              <text x={x(e.tSec)} y={y(e.suspicion) - r - 5} textAnchor="middle" fontSize="11" fontWeight="700" fill={fill}>
+              <text x={x(e.tSec)} y={markerY(e) - r - 5} textAnchor="middle" fontSize="11" fontWeight="700" fill={fill}>
                 {e.delta > 0 ? "+" : ""}
                 {e.delta}
               </text>

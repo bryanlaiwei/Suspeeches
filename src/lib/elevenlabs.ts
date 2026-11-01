@@ -29,7 +29,10 @@ export async function voiceConnectionFor(setup: Setup): Promise<VoiceConnection>
     );
   }
 
-  const conversationToken = await getConversationToken(agentId);
+  // Group scenes connect over WebSocket: only that transport reports when each audio chunk starts
+  // playing (with per-character timings), which is what keeps the talking face in sync.
+  const group = setup.scenarioId === "party" || setup.scenarioId === "group";
+  const credential = group ? { signedUrl: await getSignedUrl(agentId) } : { conversationToken: await getConversationToken(agentId) };
   const dynamicVariables: Record<string, string> = {
     alias: setup.alias,
     cover_story: setup.claims.map((c) => `- ${c}`).join("\n"),
@@ -58,13 +61,28 @@ export async function voiceConnectionFor(setup: Setup): Promise<VoiceConnection>
     dynamicVariables.character_setting = setup.custom.setting || "A casual first meeting.";
     return {
       mode: "elevenlabs",
-      conversationToken,
+      ...credential,
       dynamicVariables,
       // Requires the tts.voice_id override to be enabled on the custom agent (agents:create does this).
       overrides: { tts: { voiceId: setup.custom.voiceId } },
     };
   }
-  return { mode: "elevenlabs", conversationToken, dynamicVariables };
+  return { mode: "elevenlabs", ...credential, dynamicVariables };
+}
+
+/** WebSocket signed URL for a private agent (GET /v1/convai/conversation/get-signed-url). */
+async function getSignedUrl(agentId: string): Promise<string> {
+  const res = await fetch(`${API}/v1/convai/conversation/get-signed-url?agent_id=${encodeURIComponent(agentId)}`, {
+    headers: { "xi-api-key": env.elevenLabsKey },
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new VoiceConfigError(`ElevenLabs signed URL request failed (${res.status}): ${body.slice(0, 200)}`);
+  }
+  const json = (await res.json()) as { signed_url?: string };
+  if (!json.signed_url) throw new VoiceConfigError("ElevenLabs signed URL response had no signed_url");
+  return json.signed_url;
 }
 
 /** WebRTC conversation token for a private agent (GET /v1/convai/conversation/token). */

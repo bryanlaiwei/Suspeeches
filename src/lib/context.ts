@@ -57,7 +57,11 @@ export function formatJudged(events: SuspicionEvent[]): string {
   return events
     .map(
       (e) =>
-        `${e.kind === "silence" ? `silence penalty (turn_index ${e.turnIndex})` : `turn_index ${e.turnIndex}`} at ${fmtTime(e.tSec)}: delta ${e.delta >= 0 ? "+" : ""}${e.delta} → ${e.suspicion}. ${e.reasons.join(" / ")}`,
+        `${e.kind === "silence" ? `silence penalty (turn_index ${e.turnIndex})` : `turn_index ${e.turnIndex}`} at ${fmtTime(e.tSec)}: delta ${e.delta >= 0 ? "+" : ""}${e.delta} → ${e.suspicion}.${
+          e.perCharacter?.length
+            ? ` [${e.perCharacter.map((p) => `${p.name} ${p.delta >= 0 ? "+" : ""}${p.delta} → ${p.suspicion}${p.reason ? ` (${p.reason})` : ""}`).join("; ")}]`
+            : ""
+        } ${e.reasons.join(" / ")}`,
     )
     .join("\n");
 }

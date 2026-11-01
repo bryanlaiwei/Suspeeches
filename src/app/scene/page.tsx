@@ -23,7 +23,7 @@ function ScenePageInner() {
   useEffect(() => {
     const profile = loadProfile();
     const draft = loadSetupDraft();
-    if (!profile) return router.replace("/");
+    if (!profile) return router.replace("/account");
     if (!draft?.claims?.length || !draft.gap || !SetupSchema.safeParse(draft).success) return router.replace("/setup");
     // eslint-disable-next-line react-hooks/set-state-in-effect -- hydrate from localStorage once on mount
     setData({ profile, draft });

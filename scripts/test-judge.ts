@@ -38,6 +38,7 @@ const validRaw = {
   categories: { consistency: 14, specificity: -2, plausibility: 3.6, delivery: 5 },
   claims_status: setup.claims.map((claim) => ({ claim, status: "shaky" as const })),
   next_probe: "Ask which Go version they used.",
+  listeners: [] as { name: string; delta: number; reason: string }[],
 };
 
 async function unitChecks() {
@@ -64,6 +65,14 @@ async function unitChecks() {
     // redemption: -10 judge right after a +25 spike at gap 60 → -14 - 10 = -24 → capped at -20
     assert.equal(appliedDelta(-10, 60, { lastDelta: 25, badStreak: 1, goodStreak: 0 }).delta, -20);
     assert.equal(appliedDelta(25, 100, { lastDelta: 20, badStreak: 3, goodStreak: 0 }).delta, 30);
+  });
+  await check("group: every listener gets a clamped delta; missing ones fall back to the overall", () => {
+    const raw = { ...validRaw, delta: 12, listeners: [{ name: "maya", delta: 40, reason: "Wrong jargon." }] };
+    const r = JudgeResultSchema.parse(normalizeJudge(raw, setup.claims, ["Maya", "Theo"]));
+    assert.deepEqual(
+      r.listeners.map((l) => [l.name, l.delta]),
+      [["Maya", 25], ["Theo", 12]],
+    );
   });
   await check("suspicion never leaves [0, 100]", () => {
     assert.equal(applyDelta(95, 25), 100);

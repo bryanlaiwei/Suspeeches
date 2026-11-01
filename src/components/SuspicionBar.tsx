@@ -109,7 +109,21 @@ export function EventDetail({ event, onClose }: { event: SuspicionEvent; onClose
         </button>
       </div>
       <p className="mb-2 italic text-ink/80">&ldquo;{event.quote}&rdquo;</p>
-      {event.judgeDelta !== undefined && event.judgeDelta !== event.delta && (
+      {event.perCharacter?.length ? (
+        <ul className="mb-2 space-y-1 text-xs">
+          {event.perCharacter.map((p) => (
+            <li key={p.name} className="flex gap-2">
+              <span className="w-14 shrink-0 font-semibold">{p.name}</span>
+              <span className={cx("w-16 shrink-0 font-mono font-bold", p.delta > 0 ? "text-sus" : p.delta < 0 ? "text-clean" : "text-muted")}>
+                {p.delta > 0 ? "+" : ""}
+                {p.delta} → {p.suspicion}
+              </span>
+              <span className="text-muted">{p.reason || p.adjustments?.join(", ")}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {!event.perCharacter?.length && event.judgeDelta !== undefined && event.judgeDelta !== event.delta && (
         <p className="mb-2 font-mono text-[11px] text-muted">
           judge {event.judgeDelta > 0 ? "+" : ""}
           {event.judgeDelta}
