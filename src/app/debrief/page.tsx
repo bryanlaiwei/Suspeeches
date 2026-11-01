@@ -367,7 +367,7 @@ function FollowupStatus({ state, onSent }: { state: PublicSessionState; onSent: 
           }
         }}
       >
-        {busy ? "Sending…" : "📨 Send to my inbox"}
+        {busy ? "Sending…" : state.handler.error ? "📨 Try sending again" : "📨 Send to my inbox"}
       </Button>
       {(err || state.handler.error) && <span className="text-xs text-sus">{err ?? state.handler.error}</span>}
     </div>

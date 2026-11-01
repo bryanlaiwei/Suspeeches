@@ -81,7 +81,7 @@ export async function sendFollowupNow(s: Session, email: string): Promise<void> 
 /** Fire-and-forget wrapper: handler problems must never break the game. */
 export function runHandler(s: Session, task: (h: HandlerChannel) => Promise<void>): void {
   const h = getHandler();
-  if (!h.enabled || !s.setup.emailHandler || !s.profile.email) return;
+  if (!h.enabled || !s.profile.email) return;
   s.handler.enabled = true;
   task(h).catch((err) => {
     s.handler.error = err instanceof AgentboxdError ? `${err.status} ${err.code}: ${err.message}` : String(err);

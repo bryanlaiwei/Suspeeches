@@ -3,7 +3,7 @@ import { errorResponse } from "@/lib/http";
 import { getSession, toPublic } from "@/lib/sessions";
 import { requireUser } from "@/lib/supabase-server";
 
-/** Email this game's in-character follow-up now (for games played with the email box off). */
+/** Retry sending this game's in-character follow-up (e.g. after a send error). */
 export async function POST(req: Request, ctx: RouteContext<"/api/session/[id]/followup">) {
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
@@ -14,7 +14,7 @@ export async function POST(req: Request, ctx: RouteContext<"/api/session/[id]/fo
     return Response.json({ error: "Not your game." }, { status: 403 });
   }
   const email = s.profile.email || auth.owner?.email || "";
-  if (!email) return Response.json({ error: "Add an email to your profile first." }, { status: 400 });
+  if (!email) return Response.json({ error: "Sign in to get the follow-up by email." }, { status: 400 });
   try {
     await sendFollowupNow(s, email);
     return Response.json({ state: toPublic(s) });

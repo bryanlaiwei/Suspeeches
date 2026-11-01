@@ -127,13 +127,9 @@ function ProfileForm() {
             Fill this in once. Only the hidden judge sees it, never the characters. You can edit it any time from Profile in the top bar.
           </p>
           <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
-            <label className="block">
+            <label className="block sm:col-span-2">
               <Label>Name</Label>
               <Input value={form.name} onChange={set("name")} placeholder="Sam Rivera" required />
-            </label>
-            <label className="block">
-              <Label hint="optional, for handler emails">Email</Label>
-              <Input type="email" value={form.email} onChange={set("email")} placeholder="you@example.com" />
             </label>
             <label className="block">
               <Label>Current role</Label>

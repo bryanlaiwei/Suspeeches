@@ -39,7 +39,6 @@ function SetupPageInner() {
   const [draftClaim, setDraftClaim] = useState("");
   const [goal, setGoal] = useState(PRESETS[0].defaultGoal);
   const [timeLimitSec, setTimeLimitSec] = useState(180);
-  const [emailHandler, setEmailHandler] = useState(true);
   const { user } = useAuth();
   const [suggestions, setSuggestions] = useState<{ claim: string; why: string }[]>([]);
   const [suggesting, setSuggesting] = useState(false);
@@ -64,7 +63,6 @@ function SetupPageInner() {
       if (d?.claims?.length) setClaims(d.claims);
       if (d?.goal) setGoal(d.goal);
       if (d?.timeLimitSec) setTimeLimitSec(d.timeLimitSec);
-      if (d && d.emailHandler === false) setEmailHandler(false);
       if (d?.gap && d.gapFor) {
         setGap(d.gap);
         setGapFor(d.gapFor);
@@ -73,7 +71,7 @@ function SetupPageInner() {
   }, [router]);
 
   const preset = presetFor(scenarioId);
-  const emailTo = profile?.email || user?.email || "";
+  const emailTo = user?.email ?? "";
   const isGroup = scenarioId === "party" || scenarioId === "group";
   const audience =
     scenarioId === "custom"
@@ -140,7 +138,7 @@ function SetupPageInner() {
       claims,
       goal,
       timeLimitSec,
-      emailHandler: emailHandler && !!emailTo,
+      emailHandler: true,
     });
     if (!parsed.success) {
       const issue = parsed.error.issues[0];
@@ -345,30 +343,11 @@ function SetupPageInner() {
                 </button>
               ))}
             </div>
-            <label className={cx("flex items-center gap-3 text-sm", !emailTo && "opacity-50")}>
-              <input
-                type="checkbox"
-                checked={emailHandler && !!emailTo}
-                disabled={!emailTo}
-                onChange={(e) => setEmailHandler(e.target.checked)}
-                className="h-4 w-4 accent-[var(--brand)]"
-              />
-              <span>
-                {emailTo ? (
-                  <>
-                    Email me the character&apos;s follow-up afterwards, to <strong className="text-ink">{emailTo}</strong>
-                  </>
-                ) : (
-                  <>
-                    Email me the character&apos;s follow-up afterwards (
-                    <Link href="/account" className="underline">
-                      add an email
-                    </Link>{" "}
-                    first)
-                  </>
-                )}
-              </span>
-            </label>
+            {emailTo && (
+              <p className="text-sm text-muted">
+                📬 Afterwards, the character will email you a follow-up at <strong className="text-ink">{emailTo}</strong>.
+              </p>
+            )}
           </Card>
         </div>
 
