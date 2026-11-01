@@ -41,6 +41,7 @@ Without keys, `npm run dev` falls back to **mock mode** (a development aid): heu
 ```bash
 npm run agents:create              # creates all three agents
 npm run agents:create recruiter    # or just one
+npm run agents:update              # after editing prompts/npc/*.md: push changes, keep the same IDs
 ```
 
 This reads `prompts/npc/*.md` and calls `POST /v1/convai/agents/create` for each scenario with: character sheet + shared rules as the system prompt (with `{{alias}}`, `{{cover_story}}`, `{{scene_goal}}`, `{{time_limit_minutes}}` dynamic variables), the voice and LLM from the file's frontmatter, the `end_call` system tool (so the NPC can end the scene when you've earned the goal), the client events the app listens to (`user_transcript`, `agent_response`, `vad_score`, …), and, for the custom agent only, the `tts.voice_id` override so players can pick a voice. It prints the `ELEVENLABS_AGENT_ID_*` lines to paste into `.env.local` and Render.

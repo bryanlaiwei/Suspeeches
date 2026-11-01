@@ -3,11 +3,12 @@
  *
  *   ELEVENLABS_API_KEY=... npm run agents:create            # all four
  *   ELEVENLABS_API_KEY=... npm run agents:create recruiter  # just one
+ *   npm run agents:update                                   # push prompt/voice changes to the agents in .env.local
  *
  * Each agent gets: character sheet + shared rules as its system prompt (with {{dynamic variables}}
  * for the cover story), its own voice and LLM, the end_call system tool, the client events the app
  * listens to, and (custom agent only) the tts.voice_id override so players can pick a voice.
- * Endpoint: POST https://api.elevenlabs.io/v1/convai/agents/create
+ * Endpoints: POST /v1/convai/agents/create, PATCH /v1/convai/agents/{agent_id} (update).
  */
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -29,7 +30,7 @@ function load(file: string) {
   return parseFrontmatter(readFileSync(path.join(process.cwd(), "prompts", "npc", file), "utf8"));
 }
 
-async function createAgent(scenario: (typeof SCENARIOS)[number], apiKey: string): Promise<string> {
+function agentBody(scenario: (typeof SCENARIOS)[number]) {
   const sheet = load(`${scenario}.v1.md`);
   const rules = load("_rules.v1.md");
   const prompt = `${sheet.body}\n\n${rules.body}`;
@@ -74,15 +75,28 @@ async function createAgent(scenario: (typeof SCENARIOS)[number], apiKey: string)
       : {}),
   };
 
+  return body;
+}
+
+async function createAgent(scenario: (typeof SCENARIOS)[number], apiKey: string): Promise<string> {
   const res = await fetch("https://api.elevenlabs.io/v1/convai/agents/create", {
     method: "POST",
     headers: { "xi-api-key": apiKey, "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    body: JSON.stringify(agentBody(scenario)),
   });
   const text = await res.text();
   if (!res.ok) throw new Error(`${scenario}: ${res.status} ${text.slice(0, 600)}`);
   const { agent_id } = JSON.parse(text) as { agent_id: string };
   return agent_id;
+}
+
+async function updateAgent(scenario: (typeof SCENARIOS)[number], agentId: string, apiKey: string): Promise<void> {
+  const res = await fetch(`https://api.elevenlabs.io/v1/convai/agents/${encodeURIComponent(agentId)}`, {
+    method: "PATCH",
+    headers: { "xi-api-key": apiKey, "Content-Type": "application/json" },
+    body: JSON.stringify(agentBody(scenario)),
+  });
+  if (!res.ok) throw new Error(`${scenario}: ${res.status} ${(await res.text()).slice(0, 600)}`);
 }
 
 async function main() {
@@ -91,11 +105,32 @@ async function main() {
     console.error("Set ELEVENLABS_API_KEY first (e.g. in .env.local).");
     process.exit(1);
   }
-  const only = process.argv[2];
+  const update = process.argv.includes("--update");
+  const only = process.argv.slice(2).find((a) => !a.startsWith("--"));
   const targets = SCENARIOS.filter((s) => !only || s === only);
   if (!targets.length) {
     console.error(`Unknown scenario "${only}". Use one of: ${SCENARIOS.join(", ")}`);
     process.exit(1);
+  }
+
+  if (update) {
+    let failed = 0;
+    for (const scenario of targets) {
+      const id = process.env[`ELEVENLABS_AGENT_ID_${scenario.toUpperCase()}`];
+      if (!id) {
+        console.error(`skip ${scenario}: ELEVENLABS_AGENT_ID_${scenario.toUpperCase()} not set`);
+        failed++;
+        continue;
+      }
+      try {
+        await updateAgent(scenario, id, apiKey);
+        console.log(`updated ${scenario}: ${id}`);
+      } catch (err) {
+        failed++;
+        console.error(`failed ${err instanceof Error ? err.message : err}`);
+      }
+    }
+    process.exit(failed ? 1 : 0);
   }
 
   const lines: string[] = [];

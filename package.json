@@ -9,7 +9,8 @@
     "lint": "eslint",
     "test:judge": "tsx --env-file-if-exists=.env.local scripts/test-judge.ts",
     "agents:create": "tsx --env-file-if-exists=.env.local scripts/create-agents.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "agents:update": "tsx --env-file-if-exists=.env.local scripts/create-agents.ts --update"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.3.0",
