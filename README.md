@@ -1,6 +1,6 @@
 # Suspeeches
 
-**Don't give yourself away.** A voice game for LarpHacks: you store your real profile, pick a cover story, then talk out loud to an AI character who only knows your claims. A hidden judge scores every turn, the suspicion bar above the character's head moves live, The call ends in one of two ways: any bar hits 100 (you're caught) or the clock runs out (you survived). Either way you get a debrief, a score and a share card.
+**Don't give yourself away.** A voice game for LarpHacks: you store your real profile, pick a cover story, then talk out loud to an AI character who only knows your claims. A hidden judge scores every turn, the suspicion bar above the character's head moves live. The call ends in one of two ways: any bar hits 100 (you're caught) or the clock runs out (you survived). Either way you get a debrief and a score.
 
 > All characters are fictional. Suspeeches is for practice and entertainment only.
 
@@ -116,7 +116,7 @@ Render serves HTTPS, which browsers require for microphone access. Sessions live
 
 If `AGENTBOXD_API_KEY` is set, Suspeeches sends exactly one email per scene, always to the player's sign-in email: an **in-character follow-up** from the character's own inbox (Dana, Priya, Maya, Theo and Jordan each have one; custom characters share one that is renamed per send), seconds after the scene ends. It's written by `GAP_MODEL` from `prompts/followup.v1.md` using the transcript, the goal and how you did: reached the goal → a concrete next step (interview slot, investor intro, an offer); survived without it → noncommittal; caught → a cool brush-off that hints at what didn't add up (from whoever caught you in a group); walked out → a reaction to that. It ends with a footer saying it comes from a fictional character in a practice game.
 
-The follow-up also appears on the debrief page, even with email off. Inboxes are created idempotently on `client_id` (`sus-npc-<name>`, `sus-npc-custom`). The sender sits behind the `HandlerChannel` interface in [src/lib/handler.ts](src/lib/handler.ts) and never blocks the game. Mind Agentboxd's send caps for new workspaces.
+The follow-up only goes to your inbox; it is not shown in the app. Inboxes are created idempotently on `client_id` (`sus-npc-<name>`, `sus-npc-custom`). The sender sits behind the `HandlerChannel` interface in [src/lib/handler.ts](src/lib/handler.ts) and never blocks the game. Mind Agentboxd's send caps for new workspaces.
 
 ## Layout
 
@@ -126,6 +126,6 @@ scripts/              create-agents.ts, test-judge.ts, fixtures/
 src/lib/              env, schemas (zod), llm (structured call + retry), judge, gap, summarize,
                       sessions (in-memory), scoring, timing, elevenlabs, handler, mock
 src/lib/client/       storage (localStorage), sound cues (WebAudio), api
-src/components/       Avatar, SceneRunner, CallScreen (video-call grid), SuspicionBar, Transcript, Timeline, ShareCard, Auth, ui (theme kit)
+src/components/       Avatar, SceneRunner, CallScreen (video-call grid), SuspicionBar, Transcript, Timeline, Auth, ui (theme kit)
 src/app/              / · /login · /account (profile) · /setup · /scene · /debrief · /api/*  (/history redirects to /account)
 ```

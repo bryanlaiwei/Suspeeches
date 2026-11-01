@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { RequireAuth } from "@/components/Auth";
-import { ShareCard } from "@/components/ShareCard";
 import { EventDetail, SuspicionBar } from "@/components/SuspicionBar";
 import { Timeline } from "@/components/Timeline";
 import { Transcript, type LiveLine } from "@/components/Transcript";
@@ -63,19 +62,6 @@ function Debrief() {
   }, [id]);
 
   useEffect(() => () => cancelAnimationFrame(raf.current), []);
-
-  // While the follow-up email is sending, refresh a few times so the card shows "Sent to …".
-  const sending = !!state?.followup && !state.followup.sentTo && state.handler.enabled && !state.handler.error;
-  useEffect(() => {
-    if (!sending || !id) return;
-    let tries = 0;
-    const t = setInterval(async () => {
-      if (++tries > 10) return clearInterval(t);
-      const res = await fetch(`/api/session/${id}`).then((r) => (r.ok ? r.json() : null)).catch(() => null);
-      if (res?.state) setState(res.state);
-    }, 2000);
-    return () => clearInterval(t);
-  }, [sending, id]);
 
   const d = state?.debrief;
   const duration = d ? Math.max(d.durationSec, state!.events.at(-1)?.tSec ?? 0, 1) : 1;
@@ -137,50 +123,54 @@ function Debrief() {
   const cast = castFor(state.setup);
   const spikeTurns = new Set(d.spikes.map((s) => s.turnIndex));
 
+  const outcome = caught ? "CAUGHT" : d.endReason === "left" ? "WALKED OUT" : "SURVIVED";
+  const tone = caught ? "var(--sus)" : "var(--clean)";
+
   return (
     <Shell step={3}>
-      {/* hero */}
-      <div className="grid items-center gap-6 md:grid-cols-[auto_1fr_auto]">
-        <div className="w-40">
-          <SuspicionBar value={barValue} events={[]} selected={null} onSelect={() => {}} lastDelta={null} shaking={false} />
-          <Avatar palette={cast.find((c) => c.name === d.caughtBy) ?? cast[0]} suspicion={barValue} getLevel={() => 0} className="mt-2 w-40" />
-        </div>
-        <div>
-          <div
-            className="text-6xl font-black tracking-tight sm:text-7xl"
-            style={{ color: caught ? "var(--sus)" : "var(--clean)" }}
-          >
-            {caught ? "CAUGHT" : d.endReason === "left" ? "WALKED OUT" : "SURVIVED"}
-          </div>
-          <p className="mt-2 text-xl font-semibold">&ldquo;{d.headline}&rdquo;</p>
-          {d.finalByCharacter && (
-            <p className="mt-2 flex flex-wrap gap-3 text-sm">
-              {Object.entries(d.finalByCharacter).map(([name, v]) => (
-                <span key={name} className="rounded-full border border-line px-3 py-1">
-                  {name} <span className="font-mono font-bold" style={{ color: v >= 100 ? "var(--sus)" : v >= 60 ? "var(--warn)" : "var(--clean)" }}>{v}</span>
-                  {d.caughtBy === name && <span className="ml-1 text-sus">· caught you</span>}
-                </span>
-              ))}
-            </p>
-          )}
-          <p className="mt-1 text-sm text-muted">
-            {state.setup.alias} vs {state.scenarioName} · {fmtTime(d.durationSec)} on the clock ·{" "}
-            {d.endReason === "npc_ended" ? `${state.scenarioName} ended the scene` : d.endReason === "timeout" ? "time ran out" : d.endReason}
-          </p>
-        </div>
-        <Card className="text-center">
-          <div className="text-xs font-bold tracking-[0.2em] text-muted">SCORE</div>
-          <div className="font-mono text-5xl font-black" style={{ color: caught ? "var(--sus)" : "var(--clean)" }}>
-            {d.score.toLocaleString()}
-          </div>
-          <div className="mt-2 font-mono text-xs text-muted">
-            {d.scoreBreakdown.survival} × {d.scoreBreakdown.gapMultiplier.toFixed(2)} gap × {d.scoreBreakdown.lowSuspicionBonus.toFixed(2)} cool
-          </div>
-        </Card>
-      </div>
-
-      <div className="mt-8 grid gap-6 lg:grid-cols-[1.4fr_1fr]">
+      <div className="grid items-start gap-6 lg:grid-cols-[1.6fr_1fr]">
+        {/* the story: result, timeline, claims, tips */}
         <div className="space-y-6">
+          <Card className="text-center">
+            <div className="mx-auto w-48">
+              <SuspicionBar value={barValue} events={[]} selected={null} onSelect={() => {}} lastDelta={null} shaking={false} />
+            </div>
+            <Avatar
+              palette={cast.find((c) => c.name === d.caughtBy) ?? cast[0]}
+              suspicion={barValue}
+              getLevel={() => 0}
+              className="mx-auto mt-2 w-36"
+            />
+            <div className="mt-2 text-6xl font-black tracking-tight sm:text-7xl" style={{ color: tone }}>
+              {outcome}
+            </div>
+            <p className="mt-2 text-xl font-semibold">&ldquo;{d.headline}&rdquo;</p>
+            {d.finalByCharacter && (
+              <p className="mt-3 flex flex-wrap justify-center gap-2 text-sm">
+                {Object.entries(d.finalByCharacter).map(([name, v]) => (
+                  <span key={name} className="rounded-full border border-line px-3 py-1">
+                    {name}{" "}
+                    <span className="font-mono font-bold" style={{ color: v >= 100 ? "var(--sus)" : v >= 60 ? "var(--warn)" : "var(--clean)" }}>
+                      {v}
+                    </span>
+                    {d.caughtBy === name && <span className="ml-1 text-sus">· caught you</span>}
+                  </span>
+                ))}
+              </p>
+            )}
+            <p className="mt-2 text-sm text-muted">
+              {state.setup.alias} vs {state.scenarioName} · {fmtTime(d.durationSec)} on the clock ·{" "}
+              {d.endReason === "npc_ended" ? `${state.scenarioName} ended the scene` : d.endReason === "timeout" ? "time ran out" : d.endReason}
+            </p>
+            <div className="mt-4 inline-flex flex-col items-center rounded-2xl px-6 py-2" style={{ background: caught ? "#ffd6d6" : "var(--green-soft)" }}>
+              <span className="font-mono text-4xl font-black" style={{ color: tone }}>
+                {d.score.toLocaleString()} <span className="text-lg">pts</span>
+              </span>
+              <span className="font-mono text-xs text-muted">
+                {d.scoreBreakdown.survival} × {d.scoreBreakdown.gapMultiplier.toFixed(2)} gap × {d.scoreBreakdown.lowSuspicionBonus.toFixed(2)} cool
+              </span>
+            </div>
+          </Card>
           <Card>
             <div className="mb-2 flex items-center justify-between">
               <h2 className="font-bold">Suspicion timeline</h2>
@@ -263,8 +253,9 @@ function Debrief() {
           </Card>
         </div>
 
-        <div className="space-y-6">
-          <Card className="flex max-h-[640px] flex-col">
+        {/* the whole call, pinned on the right */}
+        <div className="space-y-4 lg:sticky lg:top-6">
+          <Card className="flex max-h-[calc(100vh-10rem)] min-h-[420px] flex-col">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="font-bold">Transcript replay</h2>
               <div className="flex gap-2">
@@ -287,89 +278,19 @@ function Debrief() {
             />
           </Card>
 
-          {state.followup && (
-            <Card>
-              <div className="mb-3 flex items-center justify-between gap-2">
-                <h2 className="font-bold">📬 {state.followup.sender} emailed you</h2>
-                <span
-                  className={cx(
-                    "rounded-full px-2.5 py-0.5 text-[11px] font-bold",
-                    state.followup.goalReached ? "bg-clean/15 text-clean" : "bg-sus/10 text-sus",
-                  )}
-                >
-                  {state.followup.goalReached ? "Goal reached" : "Goal missed"}
-                </span>
-              </div>
-              <div className="rounded-xl border border-line bg-bg/60 p-4 text-sm">
-                <div className="mb-2 border-b border-line pb-2 text-xs text-muted">
-                  <div>
-                    <span className="text-ink/80">From:</span> {state.followup.sender}
-                    {state.followup.fromAddress ? ` <${state.followup.fromAddress}>` : ""}
-                  </div>
-                  <div>
-                    <span className="text-ink/80">Subject:</span> {state.followup.subject}
-                  </div>
-                </div>
-                <p className="whitespace-pre-wrap leading-relaxed text-ink/90">{state.followup.body}</p>
-              </div>
-              <FollowupStatus state={state} onSent={setState} />
-            </Card>
-          )}
-
-          <Card>
-            <h2 className="mb-3 font-bold">Share your debrief</h2>
-            <ShareCard state={state} />
-          </Card>
-
-          {state.handler.enabled && (
-            <p className="text-xs text-muted">
-              {state.handler.error
-                ? `Handler email failed: ${state.handler.error}`
-                : `${state.followup?.sender ?? "The character"}'s follow-up is on its way to your inbox.`}
-            </p>
-          )}
-
-          <div className="flex gap-3">
-            <Link href="/setup" className="flex-1">
+          <div className="flex flex-col gap-3">
+            <Link href="/setup">
               <Button className="w-full">Run it back</Button>
             </Link>
             <Link href="/account">
-              <Button variant="ghost">Edit profile</Button>
+              <Button variant="ghost" className="w-full">
+                Edit profile
+              </Button>
             </Link>
           </div>
         </div>
       </div>
     </Shell>
-  );
-}
-
-function FollowupStatus({ state, onSent }: { state: PublicSessionState; onSent: (s: PublicSessionState) => void }) {
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const f = state.followup!;
-  if (f.sentTo) return <p className="mt-2 text-xs text-clean">Sent to {f.sentTo}. Check your inbox (and spam).</p>;
-  if (state.handler.enabled && !state.handler.error) return <p className="mt-2 text-xs text-muted">On its way to your inbox…</p>;
-  return (
-    <div className="mt-3 flex flex-wrap items-center gap-3">
-      <Button
-        variant="ghost"
-        disabled={busy}
-        onClick={async () => {
-          setBusy(true);
-          setErr(null);
-          try {
-            onSent((await api.sendFollowup(state.id)).state);
-          } catch (e) {
-            setErr(e instanceof Error ? e.message : String(e));
-          } finally {
-            setBusy(false);
-          }
-        }}
-      >
-        {busy ? "Sending…" : state.handler.error ? "📨 Try sending again" : "📨 Send to my inbox"}
-      </Button>
-      {(err || state.handler.error) && <span className="text-xs text-sus">{err ?? state.handler.error}</span>}
-    </div>
   );
 }
 
