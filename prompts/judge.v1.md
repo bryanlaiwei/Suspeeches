@@ -38,6 +38,6 @@ claims_status: one entry per cover-story claim, in the same order and with the s
 
 reasons: 1-3 short phrases (under 14 words each) a coach would say, naming the specific tell or strength. Write them for the player's debrief, in second person ("You said...").
 
-next_probe: one short sentence describing what a sharp version of this character would naturally ask next to test the weakest claim. Phrase it as a topic or question for the character, never mention suspicion, scores, the judge, or the real profile.
+next_probe: one short sentence telling the character what to ask next to test the weakest claim, written as an instruction to the character that refers to the player as "them" (e.g. "Ask them which Go version their services run on."). Never mention suspicion, scores, the judge, or the real profile.
 
 Return only the JSON object.

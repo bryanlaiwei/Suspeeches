@@ -6,7 +6,7 @@ import { cx } from "./ui";
 
 export interface LiveLine {
   id: number;
-  role: "user" | "agent";
+  role: "user" | "agent" | "system";
   text: string;
   tSec: number;
   /** undefined = not a judged line; null = judging; number = delta */
@@ -40,6 +40,21 @@ export function Transcript({
       {lines.length === 0 && <p className="text-sm text-muted">The transcript appears here as you talk.</p>}
       {lines.map((l) => {
         const future = highlightUntil !== undefined && l.tSec > highlightUntil;
+        if (l.role === "system") {
+          return (
+            <button
+              key={l.id}
+              type="button"
+              onClick={() => l.turnIndex !== undefined && onSelectTurn?.(l.turnIndex)}
+              className={cx(
+                "mx-auto block rounded-full border border-warn/40 bg-warn/10 px-3 py-1 font-mono text-[11px] text-warn transition-opacity",
+                future && "opacity-25",
+              )}
+            >
+              {fmtTime(l.tSec)} · {l.text}
+            </button>
+          );
+        }
         return (
           <div
             key={l.id}

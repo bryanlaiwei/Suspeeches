@@ -59,7 +59,7 @@ function Debrief() {
   const lines: LiveLine[] = useMemo(() => {
     if (!state) return [];
     const byTurn = new Map(state.events.map((e) => [e.turnIndex, e]));
-    return state.transcript.map((t) => ({
+    const turns: LiveLine[] = state.transcript.map((t) => ({
       id: t.index,
       role: t.role,
       text: t.text,
@@ -67,6 +67,10 @@ function Debrief() {
       delta: t.role === "user" ? (byTurn.get(t.index)?.delta ?? undefined) : undefined,
       turnIndex: t.index,
     }));
+    const silences: LiveLine[] = state.events
+      .filter((e) => e.kind === "silence")
+      .map((e) => ({ id: 100_000 - e.turnIndex, role: "system", text: `${e.quote} +${e.delta}`, tSec: e.tSec, turnIndex: e.turnIndex }));
+    return [...turns, ...silences].sort((a, b) => a.tSec - b.tSec);
   }, [state]);
 
   const replaySuspicion = useMemo(() => {

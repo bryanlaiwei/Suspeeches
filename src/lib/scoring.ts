@@ -70,3 +70,28 @@ export function finalScore(opts: {
   const score = Math.round(survival * opts.gapMultiplier * lowSuspicionBonus);
   return { score, breakdown: { survival, gapMultiplier: opts.gapMultiplier, lowSuspicionBonus } };
 }
+
+/* ---------- silence ---------- */
+
+/** Seconds of silence on the player's turn before the first penalty. */
+export const SILENCE_FIRST_SEC = 8;
+/** Further penalties while the silence continues, every this many seconds. */
+export const SILENCE_REPEAT_SEC = 6;
+/** Suspicion added per silence penalty (first, then each repeat). */
+export const SILENCE_PENALTY = [6, 8, 10] as const;
+
+export function silencePenalty(strikeInThisSilence: number): number {
+  return SILENCE_PENALTY[Math.min(strikeInThisSilence, SILENCE_PENALTY.length - 1)];
+}
+
+/* ---------- NPC mood ---------- */
+
+export type Mood = "warm" | "curious" | "skeptical" | "cold";
+
+/** The NPC's tone follows suspicion in bands. */
+export function moodFor(suspicion: number): Mood {
+  if (suspicion < 35) return "warm";
+  if (suspicion < 60) return "curious";
+  if (suspicion < 80) return "skeptical";
+  return "cold";
+}

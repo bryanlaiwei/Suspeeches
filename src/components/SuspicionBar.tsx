@@ -68,7 +68,8 @@ export function SuspicionBar({
             onClick={() => onSelect(selected === e.turnIndex ? null : e.turnIndex)}
             title={`${fmtTime(e.tSec)} ${e.delta > 0 ? "+" : ""}${e.delta}`}
             className={cx(
-              "absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-bg transition hover:scale-150",
+              "absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 border-2 border-bg transition hover:scale-150",
+              e.kind === "silence" ? "rotate-45 rounded-[2px]" : "rounded-full",
               selected === e.turnIndex && "scale-150 ring-2 ring-ink",
             )}
             style={{

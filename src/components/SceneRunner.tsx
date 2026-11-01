@@ -9,7 +9,7 @@ import { playCaught, playRelief, playSpike, playSurvived, unlockAudio } from "@/
 import type { SetupDraft } from "@/lib/client/storage";
 import { CUSTOM_PRESET, presetFor } from "@/lib/presets";
 import { SetupSchema, type Profile, type Setup } from "@/lib/schemas";
-import { SPIKE_DELTA } from "@/lib/scoring";
+import { moodFor, SILENCE_FIRST_SEC, SILENCE_REPEAT_SEC, SPIKE_DELTA } from "@/lib/scoring";
 import type { ClaimState, EndReason, PublicSessionState, SuspicionEvent, VoiceConnection } from "@/lib/types";
 import { Avatar, type AvatarPalette } from "./Avatar";
 import { EventDetail, SuspicionBar } from "./SuspicionBar";
@@ -40,6 +40,7 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
   const [ending, setEnding] = useState<EndReason | null>(null);
   const [userTalking, setUserTalking] = useState(false);
   const [hasSession, setHasSession] = useState(false);
+  const [silentFor, setSilentFor] = useState(0);
 
   const suspicion = useAnimatedNumber(state?.suspicion ?? 15, 5);
 
@@ -52,6 +53,9 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
   const lineId = useRef(0);
   const voiceRef = useRef<VoiceConnection | null>(null);
   const mock = useRef({ level: 0, speaking: false, lineIdx: 0 });
+  const npcSpeaking = useRef(false);
+  /** Next silence report we owe the server for the current silent stretch. */
+  const silenceDue = useRef<{ since: number; strikes: number } | null>(null);
 
   const elapsed = () => (startedAt.current ? (performance.now() - startedAt.current) / 1000 : 0);
 
@@ -72,6 +76,7 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
       else onUserLine(message);
     },
     onModeChange: ({ mode }) => {
+      npcSpeaking.current = mode === "speaking";
       if (mode === "listening") {
         agentStoppedAt.current = performance.now();
         userSpeechStart.current = null;
@@ -133,9 +138,8 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
           void finish("caught");
           return;
         }
-        if (judged.npcHint && voiceRef.current?.mode === "elevenlabs" && !endingRef.current) {
-          conversation.sendContextualUpdate(judged.npcHint);
-        }
+        tellNpc(res.npcMood);
+        tellNpc(judged.npcHint);
       })
       .catch((e) => {
         setLines((ls) => ls.map((l) => (l.id === id ? { ...l, delta: undefined } : l)));
@@ -145,9 +149,47 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
     if (voiceRef.current?.mode === "mock") mockReply();
   }
 
+  /** Contextual update to the NPC (mood or next-question hint). Never triggers a reply. */
+  function tellNpc(text: string | null | undefined) {
+    if (text && voiceRef.current?.mode === "elevenlabs" && !endingRef.current) conversation.sendContextualUpdate(text);
+  }
+
+  /** Called every tick: penalise silence on the player's turn (the server has the final say). */
+  function checkSilence() {
+    const stopped = agentStoppedAt.current;
+    const speaking = voiceRef.current?.mode === "mock" ? mock.current.speaking : npcSpeaking.current;
+    if (stopped === null || speaking || userSpeechStart.current !== null || !startedAt.current) {
+      silenceDue.current = null;
+      setSilentFor(0);
+      return;
+    }
+    const since = (stopped - startedAt.current) / 1000;
+    const quiet = elapsed() - since;
+    setSilentFor(quiet);
+    if (!silenceDue.current || silenceDue.current.since !== since) silenceDue.current = { since, strikes: 0 };
+    const due = SILENCE_FIRST_SEC + silenceDue.current.strikes * SILENCE_REPEAT_SEC;
+    if (quiet < due || !sessionId.current) return;
+    silenceDue.current.strikes++;
+    void api
+      .silence(sessionId.current, since, elapsed())
+      .then((res) => {
+        if (!res.event || endingRef.current) return;
+        setState(res.state);
+        pushLine({ role: "system", text: `${res.event.quote} +${res.event.delta}`, tSec: res.event.tSec, turnIndex: res.event.turnIndex });
+        react(res.event);
+        if (res.state.status === "caught") return void finish("caught");
+        tellNpc(res.npcMood);
+      })
+      .catch((e) => console.error("silence report failed", e));
+  }
+
   function react(e: SuspicionEvent) {
     setLastDelta({ delta: e.delta, key: e.turnIndex });
-    if (e.delta >= SPIKE_DELTA) {
+    if (e.kind === "silence") {
+      playSpike(0.35);
+      setShaking(true);
+      setTimeout(() => setShaking(false), 500);
+    } else if (e.delta >= SPIKE_DELTA) {
       playSpike(e.delta / 25);
       setShaking(true);
       setTimeout(() => setShaking(false), 500);
@@ -264,6 +306,7 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
       const left = Math.max(0, setup.timeLimitSec - elapsed());
       setRemaining(left);
       if (left <= 0) void finish("timeout");
+      else checkSilence();
     }, 250);
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -306,7 +349,9 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
   /* ---------- render ---------- */
 
   const selectedEvent = state?.events.find((e) => e.turnIndex === selected) ?? null;
-  const npcSpeaking = voice?.mode === "elevenlabs" ? conversation.isSpeaking : false;
+  const npcTalking = voice?.mode === "elevenlabs" ? conversation.isSpeaking : false;
+  const mood = moodFor(state?.suspicion ?? 15);
+  const silenceWarning = phase === "live" && silentFor >= SILENCE_FIRST_SEC - 3;
   const claims: ClaimState[] = state?.claims ?? setup.claims.map((claim) => ({ claim, status: "untested" }));
 
   if (phase === "briefing" || (phase === "error" && !hasSession)) {
@@ -361,15 +406,27 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
           <div className="mt-1 text-center">
             <div className="text-xl font-bold">{npcName}</div>
             <div className="text-sm text-muted">{setup.scenarioId === "custom" ? "Custom character" : preset.title}</div>
+            {phase === "live" && (
+              <div className="mt-1 text-xs text-muted">
+                Mood: <span className={cx("font-semibold", MOOD_COLOR[mood])}>{mood}</span>
+              </div>
+            )}
           </div>
 
           <div className="mt-5 flex items-center gap-3">
             {phase === "connecting" && <StatusPill tone="muted">Connecting to {npcName}…</StatusPill>}
+            {silenceWarning && (
+              <StatusPill tone="warn">
+                {npcName} is waiting… {Math.max(0, Math.ceil(nextSilenceAt(silentFor) - silentFor))}s
+              </StatusPill>
+            )}
             {phase === "live" && voice?.mode === "elevenlabs" && (
               <>
-                <StatusPill tone={npcSpeaking ? "brand" : userTalking ? "clean" : "muted"}>
-                  {npcSpeaking ? `${npcName} is talking` : userTalking ? "You're talking" : "Your turn. Speak up."}
-                </StatusPill>
+                {!silenceWarning && (
+                  <StatusPill tone={npcTalking ? "brand" : userTalking ? "clean" : "muted"}>
+                    {npcTalking ? `${npcName} is talking` : userTalking ? "You're talking" : "Your turn. Speak up."}
+                  </StatusPill>
+                )}
                 <Button variant="ghost" onClick={() => conversation.setMuted(!conversation.isMuted)}>
                   {conversation.isMuted ? "🎙️ Unmute" : "🔇 Mute mic"}
                 </Button>
@@ -382,7 +439,7 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
             )}
           </div>
           {error && phase !== "ended" && <p className="mt-3 text-sm text-sus">{error}</p>}
-          {voice?.mode === "mock" && phase === "live" && <MockInput onSend={(t) => onUserLine(t)} />}
+          {voice?.mode === "mock" && phase === "live" && <MockInput onSend={(t) => onUserLine(t)} onTyping={markUserSpeaking} />}
         </div>
 
         <Card className="flex max-h-[78vh] min-h-[420px] flex-col">
@@ -495,7 +552,15 @@ function ClaimsHud({ claims }: { claims: ClaimState[] }) {
   );
 }
 
-function StatusPill({ children, tone }: { children: React.ReactNode; tone: "brand" | "clean" | "muted" }) {
+const MOOD_COLOR = { warm: "text-clean", curious: "text-ink", skeptical: "text-warn", cold: "text-sus" } as const;
+
+/** Seconds of silence at which the next penalty lands. */
+function nextSilenceAt(quiet: number): number {
+  if (quiet < SILENCE_FIRST_SEC) return SILENCE_FIRST_SEC;
+  return SILENCE_FIRST_SEC + Math.ceil((quiet - SILENCE_FIRST_SEC + 0.001) / SILENCE_REPEAT_SEC) * SILENCE_REPEAT_SEC;
+}
+
+function StatusPill({ children, tone }: { children: React.ReactNode; tone: "brand" | "clean" | "muted" | "warn" }) {
   return (
     <span
       className={cx(
@@ -503,6 +568,7 @@ function StatusPill({ children, tone }: { children: React.ReactNode; tone: "bran
         tone === "brand" && "border-brand/50 bg-brand/15",
         tone === "clean" && "border-clean/50 bg-clean/10",
         tone === "muted" && "border-line text-muted",
+        tone === "warn" && "animate-pulse border-warn/60 bg-warn/15 text-warn",
       )}
     >
       <span
@@ -511,6 +577,7 @@ function StatusPill({ children, tone }: { children: React.ReactNode; tone: "bran
           tone === "brand" && "animate-pulse bg-brand",
           tone === "clean" && "animate-pulse bg-clean",
           tone === "muted" && "bg-muted",
+          tone === "warn" && "bg-warn",
         )}
       />
       {children}
@@ -518,7 +585,7 @@ function StatusPill({ children, tone }: { children: React.ReactNode; tone: "bran
   );
 }
 
-function MockInput({ onSend }: { onSend: (text: string) => void }) {
+function MockInput({ onSend, onTyping }: { onSend: (text: string) => void; onTyping: () => void }) {
   const [text, setText] = useState("");
   return (
     <form
@@ -533,7 +600,14 @@ function MockInput({ onSend }: { onSend: (text: string) => void }) {
         MOCK_MODE dev input (stands in for your microphone)
       </p>
       <div className="flex gap-2">
-        <Input value={text} onChange={(e) => setText(e.target.value)} placeholder="Type what you'd say…" />
+        <Input
+          value={text}
+          onChange={(e) => {
+            setText(e.target.value);
+            onTyping();
+          }}
+          placeholder="Type what you'd say…"
+        />
         <Button type="submit" variant="ghost">
           Say
         </Button>

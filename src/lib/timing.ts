@@ -1,3 +1,4 @@
+import { SILENCE_FIRST_SEC } from "./scoring";
 import type { DeliverySignals, Timing } from "./types";
 
 /** Single-word and multi-word fillers. Matched case-insensitively on word boundaries. */
@@ -60,7 +61,13 @@ export function describeSignals(s: DeliverySignals): string {
   const parts = [
     `words: ${s.words}`,
     `filler words: ${s.fillerCount} (${s.fillerRate} per 100 words)${s.fillers.length ? ` [${s.fillers.join(", ")}]` : ""}`,
-    `response latency: ${s.responseLatencyMs == null ? "unknown" : `${(s.responseLatencyMs / 1000).toFixed(1)} s`}${s.longPause ? " (long pause)" : ""}`,
+    `response latency: ${s.responseLatencyMs == null ? "unknown" : `${(s.responseLatencyMs / 1000).toFixed(1)} s`}${
+      (s.responseLatencyMs ?? 0) >= SILENCE_FIRST_SEC * 1000
+        ? " (already penalised separately as silence; judge only the words, and treat the pause as a normal hesitation at most)"
+        : s.longPause
+          ? " (long pause)"
+          : ""
+    }`,
     `speaking time: ${s.speechMs == null ? "unknown" : `${(s.speechMs / 1000).toFixed(1)} s`}`,
     `pace: ${s.wordsPerMinute == null ? "unknown" : `${s.wordsPerMinute} words/min`}`,
   ];

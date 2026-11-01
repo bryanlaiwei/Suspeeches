@@ -1,7 +1,7 @@
 "use client";
 
 import type { GapResult, Profile, ScenarioId, Setup } from "../schemas";
-import type { CreateSessionResponse, EventResponse, PublicSessionState, Timing } from "../types";
+import type { CreateSessionResponse, EventResponse, PublicSessionState, SilenceResponse, Timing } from "../types";
 
 async function post<T>(url: string, body: unknown): Promise<T> {
   const res = await fetch(url, {
@@ -23,6 +23,8 @@ export const api = {
     post<CreateSessionResponse>("/api/session", { profile, setup, gap: gap ?? undefined }),
   event: (id: string, role: "user" | "agent", text: string, timing: Timing) =>
     post<EventResponse>(`/api/session/${id}/event`, { role, text, timing }),
+  silence: (id: string, silentSinceSec: number, tSec: number) =>
+    post<SilenceResponse>(`/api/session/${id}/silence`, { silentSinceSec, tSec }),
   end: (id: string, reason: "timeout" | "npc_ended" | "left" | "error", tSec: number) =>
     post<{ state: PublicSessionState }>(`/api/session/${id}/end`, { reason, tSec }),
   debrief: (id: string) => post<{ state: PublicSessionState }>(`/api/session/${id}/debrief`, {}),

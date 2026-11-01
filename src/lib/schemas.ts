@@ -129,6 +129,12 @@ export const EventBodySchema = z.object({
   timing: TimingSchema,
 });
 
+export const SilenceBodySchema = z.object({
+  /** Scene time (s) when the player's turn started (the NPC stopped talking). */
+  silentSinceSec: z.number().min(0).max(3600),
+  tSec: z.number().min(0).max(3600),
+});
+
 export const EndBodySchema = z.object({
   reason: z.enum(["timeout", "npc_ended", "left", "error"]),
   tSec: z.number().min(0).max(3600),

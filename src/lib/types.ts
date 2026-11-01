@@ -32,15 +32,17 @@ export interface DeliverySignals {
   longPause: boolean;
 }
 
-/** A judged user turn, as shown on the bar / timeline. */
+/** A judged user turn or a silence penalty, as shown on the bar / timeline. */
 export interface SuspicionEvent {
+  kind: "turn" | "silence";
+  /** Transcript index of the judged turn; negative (-1, -2, ...) for silence penalties. */
   turnIndex: number;
   tSec: number;
   delta: number;
   suspicion: number;
   reasons: string[];
   categories: JudgeResult["categories"];
-  /** Text of the user turn, for the timeline popover. */
+  /** Text of the user turn (or a silence description), for the timeline popover. */
   quote: string;
   /** True when the judge failed twice and we fell back to a neutral result. */
   degraded?: boolean;
@@ -89,6 +91,15 @@ export interface EventResponse {
   state: PublicSessionState;
   /** Present when this event was a judged user turn. */
   judged?: { event: SuspicionEvent; nextProbe: string; npcHint: string } | null;
+  /** Tone change for the NPC when suspicion crossed a mood band (contextual update text). */
+  npcMood?: string | null;
+}
+
+export interface SilenceResponse {
+  state: PublicSessionState;
+  /** Null when the report was early, duplicate, or the scene is over. */
+  event: SuspicionEvent | null;
+  npcMood: string | null;
 }
 
 export type VoiceConnection =

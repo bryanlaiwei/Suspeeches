@@ -18,6 +18,8 @@ See [PLAN.md](PLAN.md) for the architecture and build order.
 * The judge returns strict JSON (`delta`, `reasons`, `categories`, `claims_status`, `next_probe`). The server validates it with zod, clamps `delta` to [-15, 25], and retries once on invalid output; if both tries fail, the turn counts as neutral so the scene keeps going.
 * Delivery signals come from the transcript and client timestamps, not audio: response latency (NPC stops talking → voice activity starts), speaking time, words per minute, filler-word rate.
 * The judge's `next_probe` goes to the NPC with ElevenLabs `sendContextualUpdate`, which adds context without triggering a reply. The NPC is told to use these notes silently and never to mention scores.
+* **Mood:** the NPC's tone follows suspicion in four bands: warm (<35), curious (35–59), skeptical (60–79) and cold (80+). When the band changes, the server sends the NPC a mood note from `prompts/npc/_moods.v1.md` as a contextual update. It changes tone only and never mentions numbers.
+* **Silence penalty:** if it's your turn and you say nothing, a countdown appears. At 8 s of silence suspicion goes up by 6, then by 8 and 10 every further 6 s. The browser reports the silence, and the server checks the timing and applies the penalty (`/api/session/:id/silence`; tune it with the constants in `src/lib/scoring.ts`). The judge is told not to count the same pause again.
 * Score = survival (1000 survived, 500 walked out, 0–250 caught based on time held) × gap multiplier × low-suspicion bonus (1 + (100 − average suspicion)/100).
 
 ## Run locally

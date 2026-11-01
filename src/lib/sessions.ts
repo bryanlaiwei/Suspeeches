@@ -2,7 +2,17 @@ import { randomUUID } from "node:crypto";
 import { characterName } from "./context";
 import { judgeTurn, npcHintFor } from "./judge";
 import type { GapResult, Profile, Setup, Timing } from "./schemas";
-import { applyDelta, CAUGHT_AT, START_SUSPICION } from "./scoring";
+import { moodNote } from "./mood";
+import {
+  applyDelta,
+  CAUGHT_AT,
+  moodFor,
+  silencePenalty,
+  SILENCE_FIRST_SEC,
+  SILENCE_REPEAT_SEC,
+  START_SUSPICION,
+  type Mood,
+} from "./scoring";
 import { deliverySignals } from "./timing";
 import type {
   ClaimState,
@@ -10,6 +20,7 @@ import type {
   EndReason,
   EventResponse,
   PublicSessionState,
+  SilenceResponse,
   SessionStatus,
   SuspicionEvent,
   Turn,
@@ -34,6 +45,11 @@ export interface Session {
   handler: PublicSessionState["handler"];
   /** Serializes judge calls so suspicion updates apply in turn order. */
   queue: Promise<unknown>;
+  /** Tone the NPC was last told to use. */
+  mood: Mood;
+  /** Current silence on the player's turn: when it started and how many penalties it has cost. */
+  silence: { sinceSec: number; strikes: number } | null;
+  silenceCount: number;
 }
 
 // In-memory store. Survives hot reloads in dev via globalThis; resets on server restart (by design).
@@ -63,6 +79,9 @@ export function createSession(profile: Profile, setup: Setup, gap: GapResult): S
     debriefPromise: null,
     handler: { enabled: false, address: null, briefSent: false, debriefSent: false, error: null },
     queue: Promise.resolve(),
+    mood: moodFor(START_SUSPICION),
+    silence: null,
+    silenceCount: 0,
   };
   sessions.set(s.id, s);
   return s;
@@ -87,6 +106,7 @@ export async function addEvent(
     return { state: toPublic(s), judged: null };
   }
 
+  s.silence = null; // they spoke, so any silence streak is over
   const signals = deliverySignals(text, timing);
   const userTurn = { ...turn, signals };
   s.transcript.push(userTurn);
@@ -108,6 +128,7 @@ export async function addEvent(
     s.suspicion = applyDelta(s.suspicion, result.delta);
     s.claims = result.claims_status;
     const event: SuspicionEvent = {
+      kind: "turn",
       turnIndex: userTurn.index,
       tSec: userTurn.tSec,
       delta: result.delta,
@@ -123,7 +144,48 @@ export async function addEvent(
   });
   s.queue = job.catch(() => undefined);
   const judged = await job;
-  return { state: toPublic(s), judged };
+  return { state: toPublic(s), judged, npcMood: judged ? moodChange(s) : null };
+}
+
+/**
+ * The player has said nothing since their turn started. The browser reports it; the server decides
+ * whether a penalty is due (first after SILENCE_FIRST_SEC, then every SILENCE_REPEAT_SEC).
+ */
+export async function addSilence(s: Session, silentSinceSec: number, tSec: number): Promise<SilenceResponse> {
+  const none = (): SilenceResponse => ({ state: toPublic(s), event: null, npcMood: null });
+  if (s.status !== "live") return none();
+  if (!s.silence || Math.abs(s.silence.sinceSec - silentSinceSec) > 0.5) s.silence = { sinceSec: silentSinceSec, strikes: 0 };
+
+  const due = s.silence.sinceSec + SILENCE_FIRST_SEC + s.silence.strikes * SILENCE_REPEAT_SEC;
+  if (tSec + 0.5 < due) return none(); // too early or a duplicate report
+
+  const silentFor = Math.round(tSec - s.silence.sinceSec);
+  const delta = silencePenalty(s.silence.strikes);
+  s.silence.strikes++;
+  s.silenceCount++;
+  s.suspicion = applyDelta(s.suspicion, delta);
+  const event: SuspicionEvent = {
+    kind: "silence",
+    turnIndex: -s.silenceCount,
+    tSec,
+    delta,
+    suspicion: s.suspicion,
+    reasons: [`You went quiet for ${silentFor} seconds when it was your turn.`],
+    categories: { consistency: 5, specificity: 0, plausibility: 5, delivery: 0 },
+    quote: `(${silentFor} s of silence)`,
+  };
+  s.events.push(event);
+  if (s.suspicion >= CAUGHT_AT) finish(s, "caught", tSec);
+  return { state: toPublic(s), event, npcMood: moodChange(s) };
+}
+
+/** Contextual-update text when suspicion moved the NPC into a new mood band, else null. */
+function moodChange(s: Session): string | null {
+  if (s.status !== "live") return null;
+  const mood = moodFor(s.suspicion);
+  if (mood === s.mood) return null;
+  s.mood = mood;
+  return moodNote(mood) || null;
 }
 
 /** End the scene (idempotent). Waits for in-flight judging so the final state is consistent. */
