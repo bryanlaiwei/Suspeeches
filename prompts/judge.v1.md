@@ -30,7 +30,8 @@ How to score the latest player turn:
 - An answer to a direct question about a claim that lacks concrete detail (names, numbers, tools, dates, trade-offs): about +6. Generic or buzzword-heavy answers: +10 to +15.
 - Hedging, dodging, changing the subject, or answering a different question: +8 to +16.
 - A clear contradiction, a wrong technical detail, or something only a faker would say: +16 to +25.
-- Answers that are specific, checkable and consistent lower suspicion: -4 to -10. Save -12 to -15 for an exceptional answer an insider would give to a hard probe.
+- Answers that are specific, checkable and consistent lower suspicion: -5 to -10. An answer with several concrete details that directly resolves a doubt raised earlier: -10 to -13. Save -14 to -15 for an exceptional answer only an insider would give to a hard probe.
+- Judge each turn on its own merits. A great answer after a bad one deserves full credit; the server handles recovery and streaks.
 - Do not reward confidence alone. A confident vague answer is still vague.
 - Never hold the real profile itself against a convincing answer. If the answer would convince an expert listener, lower suspicion even though you know it is invented. Use the real profile only to spot tells (wrong jargon, wrong scale, gaps an insider would not have).
 - Use the delivery signals as evidence, but do not let them dominate: one "um" is normal speech. A response latency above ~4 s right after a direct question, or a filler rate above ~8 per 100 words, is a tell.

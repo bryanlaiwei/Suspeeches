@@ -22,24 +22,57 @@ export function applyDelta(suspicion: number, delta: number): number {
 /* ---------- difficulty ---------- */
 
 /** Bounds on the suspicion change actually applied for one judged turn. */
-export const APPLIED_MIN = -12;
+export const APPLIED_MIN = -20;
 export const APPLIED_MAX = 30;
-/** Trust rebuilds slower than doubt: good answers count for this fraction of the judge's delta. */
-export const TRUST_RATE = 0.85;
-/** Extra suspicion per consecutive suspicious turn (capped at 3 in a row). */
-export const STREAK_BONUS = 2;
+/** ±this per consecutive turn in the same direction (bad answers in a row, or good ones), max 3. */
+export const STREAK_STEP = 2;
+/** A good answer right after a spike clears up this share of that spike on top of its own credit. */
+export const REDEMPTION_SHARE = 0.4;
+/** What counts as a spike (applied) and a good answer (judge delta) for redemption. */
+export const REDEMPTION_SPIKE = 10;
+export const REDEMPTION_GOOD = -4;
+
+export interface ScoreHistory {
+  /** Applied delta of the previous judged event, if any. */
+  lastDelta: number | null;
+  /** Consecutive previous events that raised (positive) or lowered (negative) suspicion. */
+  badStreak: number;
+  goodStreak: number;
+}
 
 /**
- * Turn the judge's delta (-15..25) into the change actually applied. Doubt is amplified by the
- * larp gap (×1.0 at gap 0, ×1.67 at gap 100) and by a streak of suspicious turns; trust is damped.
+ * Turn the judge's delta (-15..25) into the change actually applied, symmetric for good and bad play:
+ * 1. The larp gap scales both ways (×1.0 at gap 0, ×1.67 at gap 100): a bigger lie is more damning
+ *    when it slips and more impressive when it holds.
+ * 2. Streaks: each previous bad answer in a row adds +2, each good one in a row adds -2 (max 3).
+ * 3. Redemption: a good answer straight after a spike also clears 40% of that spike.
  */
-export function appliedDelta(judgeDelta: number, gapScore: number, streak: number): number {
+export function appliedDelta(judgeDelta: number, gapScore: number, h: ScoreHistory): { delta: number; notes: string[] } {
   const d = clampDelta(judgeDelta);
-  const out =
-    d > 0
-      ? d * (1 + clamp(gapScore, 0, 100) / 150) + STREAK_BONUS * Math.min(Math.max(streak, 0), 3)
-      : d * TRUST_RATE;
-  return clamp(Math.round(out), APPLIED_MIN, APPLIED_MAX);
+  const gapFactor = 1 + clamp(gapScore, 0, 100) / 150;
+  const notes: string[] = [];
+  let out = d * gapFactor;
+  if (d !== 0 && gapFactor > 1.05) notes.push(`×${gapFactor.toFixed(2)} larp gap`);
+
+  if (d > 0 && h.badStreak > 0) {
+    const extra = STREAK_STEP * Math.min(h.badStreak, 3);
+    out += extra;
+    notes.push(`+${extra} bad streak`);
+  } else if (d < 0 && h.goodStreak > 0) {
+    const extra = STREAK_STEP * Math.min(h.goodStreak, 3);
+    out -= extra;
+    notes.push(`−${extra} good streak`);
+  }
+
+  if (d <= REDEMPTION_GOOD && h.lastDelta !== null && h.lastDelta >= REDEMPTION_SPIKE) {
+    const back = Math.round(h.lastDelta * REDEMPTION_SHARE);
+    out -= back;
+    notes.push(`−${back} cleared up the last doubt`);
+  }
+
+  const delta = clamp(Math.round(out), APPLIED_MIN, APPLIED_MAX);
+  if (delta !== Math.round(out)) notes.push(`capped at ${delta > 0 ? "+" : ""}${delta}`);
+  return { delta, notes };
 }
 
 /** Coerce raw model output into the strict judge contract (clamps every number). */

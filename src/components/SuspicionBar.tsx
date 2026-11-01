@@ -112,8 +112,9 @@ export function EventDetail({ event, onClose }: { event: SuspicionEvent; onClose
       {event.judgeDelta !== undefined && event.judgeDelta !== event.delta && (
         <p className="mb-2 font-mono text-[11px] text-muted">
           judge {event.judgeDelta > 0 ? "+" : ""}
-          {event.judgeDelta} → {event.delta > 0 ? "+" : ""}
-          {event.delta} after difficulty ({event.delta > event.judgeDelta ? "larp gap + streak" : "trust rebuilds slowly"})
+          {event.judgeDelta}
+          {event.adjustments?.length ? `, ${event.adjustments.join(", ")}` : ""} → {event.delta > 0 ? "+" : ""}
+          {event.delta}
         </p>
       )}
       <ul className="list-disc space-y-1 pl-4 text-ink/90">

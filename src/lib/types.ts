@@ -42,6 +42,8 @@ export interface SuspicionEvent {
   delta: number;
   /** The judge's raw delta before scaling (turn events only). */
   judgeDelta?: number;
+  /** How the judge's delta became the applied one, e.g. ["×1.40 larp gap", "−10 cleared up the last doubt"]. */
+  adjustments?: string[];
   suspicion: number;
   reasons: string[];
   categories: JudgeResult["categories"];

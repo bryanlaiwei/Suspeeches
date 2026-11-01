@@ -54,13 +54,16 @@ async function unitChecks() {
     assert.deepEqual(r.categories, { consistency: 10, specificity: 0, plausibility: 4, delivery: 5 });
     assert.equal(r.claims_status.length, setup.claims.length);
   });
-  await check("difficulty: doubt scales with gap + streak, trust is damped, bounds hold", () => {
-    assert.equal(appliedDelta(10, 0, 0), 10);
-    assert.equal(appliedDelta(10, 60, 0), 14);
-    assert.equal(appliedDelta(10, 60, 2), 18);
-    assert.equal(appliedDelta(25, 100, 3), 30);
-    assert.equal(appliedDelta(-10, 60, 0), -8);
-    assert.equal(appliedDelta(-15, 0, 0), -12);
+  await check("scoring: symmetric gap scaling, streaks both ways, redemption, bounds", () => {
+    const fresh = { lastDelta: null, badStreak: 0, goodStreak: 0 };
+    assert.equal(appliedDelta(10, 0, fresh).delta, 10);
+    assert.equal(appliedDelta(10, 60, fresh).delta, 14);
+    assert.equal(appliedDelta(-10, 60, fresh).delta, -14);
+    assert.equal(appliedDelta(10, 60, { lastDelta: 14, badStreak: 2, goodStreak: 0 }).delta, 18);
+    assert.equal(appliedDelta(-6, 60, { lastDelta: -8, badStreak: 0, goodStreak: 1 }).delta, -10);
+    // redemption: -10 judge right after a +25 spike at gap 60 → -14 - 10 = -24 → capped at -20
+    assert.equal(appliedDelta(-10, 60, { lastDelta: 25, badStreak: 1, goodStreak: 0 }).delta, -20);
+    assert.equal(appliedDelta(25, 100, { lastDelta: 20, badStreak: 3, goodStreak: 0 }).delta, 30);
   });
   await check("suspicion never leaves [0, 100]", () => {
     assert.equal(applyDelta(95, 25), 100);
@@ -111,6 +114,7 @@ async function transcriptRun() {
   const transcript: Turn[] = [];
   let claims = initialClaims();
   let suspicion = START_SUSPICION;
+  const applied: number[] = [];
   let userTurns = 0;
 
   for (const [i, t] of (fixture.turns as { role: "user" | "agent"; text: string; timing?: { responseLatencyMs: number; speechMs: number } }[]).entries()) {
@@ -134,12 +138,21 @@ async function transcriptRun() {
       );
       assert.equal(out.degraded, false, "judge fell back to the neutral result");
     });
-    const streak = 0; // fixture runs show the judge's raw deltas; streaks are covered above
-    const applied = appliedDelta(out.result.delta, 60, streak);
-    suspicion = applyDelta(suspicion, applied);
+    const run = (bad: boolean) => {
+      let n = 0;
+      for (let k = applied.length - 1; k >= 0 && (bad ? applied[k] > 0 : applied[k] < 0); k--) n++;
+      return n;
+    };
+    const { delta: thisDelta, notes } = appliedDelta(out.result.delta, 60, {
+      lastDelta: applied.at(-1) ?? null,
+      badStreak: run(true),
+      goodStreak: run(false),
+    });
+    applied.push(thisDelta);
+    suspicion = applyDelta(suspicion, thisDelta);
     claims = out.result.claims_status;
     console.log(
-      `    "${t.text.slice(0, 60)}${t.text.length > 60 ? "…" : ""}"\n    judge ${out.result.delta >= 0 ? "+" : ""}${out.result.delta}, applied ${applied >= 0 ? "+" : ""}${applied} (gap 60) → suspicion ${suspicion} | ${out.result.reasons.join(" / ")}\n    next_probe: ${out.result.next_probe}`,
+      `    "${t.text.slice(0, 60)}${t.text.length > 60 ? "…" : ""}"\n    judge ${out.result.delta >= 0 ? "+" : ""}${out.result.delta}, applied ${thisDelta >= 0 ? "+" : ""}${thisDelta}${notes.length ? ` [${notes.join(", ")}]` : ""} → suspicion ${suspicion} | ${out.result.reasons.join(" / ")}\n    next_probe: ${out.result.next_probe}`,
     );
   }
   await check("suspicion stayed in [0, 100]", () => assert.ok(suspicion >= 0 && suspicion <= 100));

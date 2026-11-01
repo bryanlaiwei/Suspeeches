@@ -13,6 +13,7 @@ import {
   SILENCE_REPEAT_SEC,
   START_SUSPICION,
   type Mood,
+  type ScoreHistory,
 } from "./scoring";
 import { deliverySignals } from "./timing";
 import type {
@@ -126,7 +127,7 @@ export async function addEvent(
     // The scene may have ended while the judge was thinking.
     if (s.status !== "live") return null;
 
-    const delta = appliedDelta(result.delta, s.gap.gapScore, suspiciousStreak(s));
+    const { delta, notes } = appliedDelta(result.delta, s.gap.gapScore, scoreHistory(s));
     s.suspicion = applyDelta(s.suspicion, delta);
     s.claims = result.claims_status;
     const event: SuspicionEvent = {
@@ -135,6 +136,7 @@ export async function addEvent(
       tSec: userTurn.tSec,
       delta,
       judgeDelta: result.delta,
+      adjustments: notes,
       suspicion: s.suspicion,
       reasons: result.reasons,
       categories: result.categories,
@@ -182,11 +184,14 @@ export async function addSilence(s: Session, silentSinceSec: number, tSec: numbe
   return { state: toPublic(s), event, npcMood: npcNote(s) };
 }
 
-/** How many judged events in a row (most recent first) raised suspicion. */
-function suspiciousStreak(s: Session): number {
-  let n = 0;
-  for (let i = s.events.length - 1; i >= 0 && s.events[i].delta > 0; i--) n++;
-  return n;
+/** Recent scoring history for streaks and redemption (silence penalties count as bad turns). */
+function scoreHistory(s: Session): ScoreHistory {
+  const streak = (bad: boolean) => {
+    let n = 0;
+    for (let i = s.events.length - 1; i >= 0 && (bad ? s.events[i].delta > 0 : s.events[i].delta < 0); i--) n++;
+    return n;
+  };
+  return { lastDelta: s.events.at(-1)?.delta ?? null, badStreak: streak(true), goodStreak: streak(false) };
 }
 
 /** Note for the NPC after a suspicion change: "end the call" when caught, a new mood, or nothing. */
