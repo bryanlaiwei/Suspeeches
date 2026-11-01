@@ -1,6 +1,6 @@
 # Suspeeches
 
-**Don't give yourself away.** A voice game for LarpHacks: you store your real profile, pick a cover story, then talk out loud to an AI character who only knows your claims. A hidden judge scores every turn, the suspicion bar above the character's head moves live, and at 100 you're caught. Survive the clock (or get the character to wrap up happy) and you get a debrief, a score and a share card.
+**Don't give yourself away.** A voice game for LarpHacks: you store your real profile, pick a cover story, then talk out loud to an AI character who only knows your claims. A hidden judge scores every turn, the suspicion bar above the character's head moves live, The call ends in one of two ways: any bar hits 100 (you're caught) or the clock runs out (you survived). Either way you get a debrief, a score and a share card.
 
 > All characters are fictional. Suspeeches is for practice and entertainment only.
 
@@ -37,7 +37,7 @@ Each group is a single ElevenLabs agent using **multi-voice**: the agent wraps e
 
 **Each character asks about what they know**: Maya takes the engineering questions, Jordan the design ones, and Theo mostly comments and banters, asking only the odd business question. Usually one or two of them speak per turn, rotating so nobody goes quiet for long, and the judge's next-question hint names which character should ask it. Custom group characters ask about their "knows a lot about" field. ElevenLabs expressive tags like `[curious]` are performed by the voice and stripped from the transcript.
 
-**Each character has their own suspicion bar**, based on their expertise (Maya: engineering; Theo: business, metrics and culture; Jordan: design; custom characters: whatever you write under "knows a lot about"). The judge returns a delta per listener: full strength for claims inside their expertise, about a third outside it, while contradictions, pauses and hedging are noticed by everyone. Each bar gets its own larp-gap scaling, streaks and redemption, and each character gets their own mood. **If any one bar hits 100 you're caught**, and that character ends the conversation. The custom group agent has six voice tags, one per premade voice; at scene start the server tells it which character uses which tag. Prompts: `prompts/npc/party.v1.md`, `prompts/npc/group.v1.md`, `prompts/npc/_group_rules.v1.md`.
+**Each character has their own suspicion bar**, based on their expertise (Maya: engineering; Theo: business, metrics and culture; Jordan: design; custom characters: whatever you write under "knows a lot about"). The judge returns a delta per listener: full strength for claims inside their expertise, about a third outside it, while contradictions, pauses and hedging are noticed by everyone. Each bar gets its own larp-gap scaling, streaks and redemption, and each character gets their own mood. **If any one bar hits 100 you're caught** and the call ends. The custom group agent has six voice tags, one per premade voice; at scene start the server tells it which character uses which tag. Prompts: `prompts/npc/party.v1.md`, `prompts/npc/group.v1.md`, `prompts/npc/_group_rules.v1.md`.
 
 ## Accounts and history
 

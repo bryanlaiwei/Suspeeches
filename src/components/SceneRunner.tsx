@@ -594,8 +594,8 @@ function Briefing({
         </dl>
         <p className="mt-4 text-sm font-bold text-muted">
           {cast.length > 1
-            ? "The bar over each person's head shows how suspicious they are of you. If anyone hits 100%, you're caught."
-            : `The bar over ${cast[0].name}'s head shows how suspicious they are of you. If it hits 100%, you're caught.`}
+            ? "The bar over each person's head shows how suspicious they are of you. The call ends when anyone hits 100% (you're caught) or the clock runs out (you made it)."
+            : `The bar over ${cast[0].name}'s head shows how suspicious they are of you. The call ends when it hits 100% (you're caught) or the clock runs out (you made it).`}
         </p>
         {error && <p className="mt-3 rounded-2xl bg-red/10 px-4 py-3 text-sm font-bold text-red">{error}</p>}
         <div className="mt-5 flex gap-3">
