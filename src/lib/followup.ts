@@ -32,6 +32,7 @@ export async function buildFollowup(s: Session, d: Debrief): Promise<Followup | 
   const raw: FollowupRaw = llmMock() ? mockFollowup(s, d) : await generate(s, d).catch(() => mockFollowup(s, d));
 
   const senderName =
+    (s.status === "caught" ? s.caughtBy : null) ??
     cast.find((c) => c.name.toLowerCase() === raw.sender.trim().toLowerCase())?.name ??
     cast.find((c) => raw.sender.toLowerCase().includes(c.name.toLowerCase()))?.name ??
     s.caughtBy ??
@@ -40,10 +41,37 @@ export async function buildFollowup(s: Session, d: Debrief): Promise<Followup | 
     sender: senderName,
     subject: raw.subject.trim().slice(0, 120),
     body: raw.body.trim(),
-    goalReached: raw.goal_reached && s.status !== "caught",
+    goalReached: raw.goal_reached && s.status !== "caught" && d.endReason !== "left",
     sentTo: null,
     fromAddress: null,
   };
+}
+
+/** The one kind of email this scene's ending calls for. The model never picks the case itself. */
+function instructionFor(s: Session, d: Debrief): string {
+  const goal = s.setup.goal;
+  if (d.outcome === "caught") {
+    return [
+      `The player was caught: ${d.caughtBy ?? characterName(s.setup)} decided their story didn't add up.`,
+      `Write a short, polite rejection from ${d.caughtBy ?? "the character who caught them"}. Say clearly that you won't be moving forward with what they wanted (${goal}).`,
+      "Hint at the one specific thing that didn't add up, in the character's own words (use the biggest tells).",
+      'No next steps, no requests for more information, no "I\'d love to hear more", no invitation to follow up.',
+      "Set goal_reached to false.",
+    ].join("\n");
+  }
+  if (d.endReason === "left") {
+    return [
+      "The player hung up and left the conversation early.",
+      "Write a short, slightly puzzled note reacting to them leaving abruptly, in character. Don't offer what they wanted.",
+      "Set goal_reached to false.",
+    ].join("\n");
+  }
+  return [
+    "The player kept their story together until the time ran out.",
+    `Set goal_reached to true only if the transcript shows the character(s) actually granted the goal or clearly intended to.`,
+    "If goal_reached is true: follow through on the goal with concrete, friendly next steps (a time slot, an introduction, an address and time), and mention one specific thing the player said that impressed you.",
+    "If goal_reached is false: polite and noncommittal; mention one thing you liked and one thing you'd still want to hear more about.",
+  ].join("\n");
 }
 
 async function generate(s: Session, d: Debrief): Promise<FollowupRaw> {
@@ -59,6 +87,7 @@ async function generate(s: Session, d: Debrief): Promise<FollowupRaw> {
       claims: formatClaims(s.setup.claims),
       scene: formatScene(s.setup),
       goal: s.setup.goal,
+      instruction: instructionFor(s, d),
       outcome,
       end_reason: d.endReason,
       suspicion_line: d.finalByCharacter

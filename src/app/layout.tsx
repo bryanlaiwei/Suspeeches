@@ -6,9 +6,8 @@ const nunito = Nunito({ variable: "--font-nunito", subsets: ["latin"], weight: [
 const bricolage = Bricolage_Grotesque({ variable: "--font-bricolage", subsets: ["latin"], weight: ["700", "800"] });
 
 export const metadata: Metadata = {
-  title: { default: "Suspeeches — Talk your way through", template: "%s · Suspeeches" },
-  description:
-    "Suspeeches is a voice game: fake a cover story to AI characters while a hidden judge watches for tells. Practice and fun only; every character is fictional.",
+  title: { default: "Suspeeches", template: "%s · Suspeeches" },
+  description: "Fake it till you make it, out loud: a voice game where AI characters can smell a larp from a mile away.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

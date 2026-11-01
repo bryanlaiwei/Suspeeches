@@ -1,6 +1,7 @@
 import { Agentboxd, AgentboxdError } from "agentboxd";
 import { castFor, PARTY_CAST, PRESETS } from "./presets";
 import { env } from "./env";
+import { followupEmail } from "./followupEmail";
 import type { Session } from "./sessions";
 
 /**
@@ -49,13 +50,8 @@ class AgentboxdHandler implements HandlerChannel {
     if (!f) return;
     const who = castFor(s.setup).find((c) => c.name === f.sender);
     const inbox = await this.characterInbox(f.sender, who?.title ?? "Suspeeches character");
-    const text = [
-      f.body,
-      "",
-      "—",
-      `Sent from Suspeeches, a practice game. ${f.sender} is a fictional character.`,
-    ].join("\n");
-    await this.client.messages.send(inbox.id, { to: s.profile.email, subject: f.subject, text }, { idempotencyKey: `followup-${s.id}` });
+    const { text, html } = followupEmail(s)!;
+    await this.client.messages.send(inbox.id, { to: s.profile.email, subject: f.subject, text, html }, { idempotencyKey: `followup-${s.id}` });
     f.sentTo = s.profile.email;
     f.fromAddress = inbox.address;
   }

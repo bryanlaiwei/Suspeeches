@@ -53,7 +53,7 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
   const userSpeechStart = useRef<number | null>(null);
   const endingRef = useRef(false);
   /** Caught: the NPC is delivering its goodbye before hanging up. */
-  const bustedRef = useRef<{ agentSpoke: boolean; fallback: ReturnType<typeof setTimeout> } | null>(null);
+  const bustedRef = useRef<{ agentSpoke: boolean; prompted: boolean; fallback: ReturnType<typeof setTimeout> } | null>(null);
   const lineId = useRef(0);
   const voiceRef = useRef<VoiceConnection | null>(null);
   const mock = useRef({ level: 0, speaking: false, lineIdx: 0 });
@@ -101,7 +101,8 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
         agentStoppedAt.current = performance.now();
         userSpeechStart.current = null;
         // The NPC finished its goodbye line: the app hangs up (NPCs can't end calls).
-        if (bustedRef.current?.agentSpoke) setTimeout(() => void finish("caught"), 1200);
+        if (bustedRef.current?.agentSpoke) setTimeout(() => void finish("caught"), 700);
+        else if (bustedRef.current) promptGoodbye();
       }
     },
     onVadScore: ({ vadScore }) => {
@@ -189,7 +190,8 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
   function onAgentLine(text: string) {
     if (!sessionId.current || endingRef.current) return;
     const tSec = elapsed();
-    if (bustedRef.current) bustedRef.current.agentSpoke = true;
+    // Only the reply to the goodbye nudge counts as the goodbye (not a line already in flight).
+    if (bustedRef.current?.prompted) bustedRef.current.agentSpoke = true;
     // One transcript line per character (group responses contain several voice tags).
     for (const seg of speakerSegments(text)) {
       const speaker = isGroup ? seg.name : undefined;
@@ -199,7 +201,8 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
   }
 
   function onUserLine(text: string) {
-    if (!sessionId.current || endingRef.current) return;
+    // Once caught, nothing the player says counts (including the nudge that triggers the goodbye).
+    if (!sessionId.current || endingRef.current || bustedRef.current) return;
     // eslint-disable-next-line react-hooks/purity -- SDK event callback, not render
     const now = performance.now();
     const tSec = elapsed();
@@ -244,8 +247,22 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
     if (voiceRef.current?.mode !== "elevenlabs" || !note) return void finish("caught");
     playCaught();
     setBusted(true);
-    bustedRef.current = { agentSpoke: false, fallback: setTimeout(() => void finish("caught"), 15_000) };
+    bustedRef.current = { agentSpoke: false, prompted: false, fallback: setTimeout(() => void finish("caught"), 8_000) };
     conversation.sendContextualUpdate(note);
+    // A contextual note never makes the NPC talk, so nudge a reply now (or once it finishes its current line).
+    if (!npcSpeaking.current) promptGoodbye();
+  }
+
+  /** Make the NPC answer right away; with the decision note in context, that answer is its goodbye. */
+  function promptGoodbye() {
+    const b = bustedRef.current;
+    if (!b || b.prompted || endingRef.current) return;
+    b.prompted = true;
+    try {
+      conversation.sendUserMessage("Okay.");
+    } catch {
+      void finish("caught");
+    }
   }
 
   /** Contextual update to the NPC (mood or next-question hint). Never triggers a reply. */
