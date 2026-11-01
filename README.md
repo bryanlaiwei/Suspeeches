@@ -4,7 +4,7 @@
 
 # Suspeeches
 
-A voice game where you larp your way through a job interview. You save your real profile, pick what you'll fake, then talk out loud to AI characters who only know your cover story. A hidden judge knows the truth, and every character's suspicion of you shows over their head.
+A voice game where you larp your way through social situations: a recruiter screen, a networking mixer, a startup interview panel, or any scene and characters you write yourself. You save your real profile, pick what you'll fake, then talk out loud to AI characters who only know your cover story. A hidden judge knows the truth, and every character's suspicion of you shows over their head.
 
 <p align="center">
   <img src="https://img.shields.io/badge/TypeScript-3178C6?style=flat&logo=typescript&logoColor=white" alt="TypeScript" />
@@ -25,7 +25,7 @@ A voice game where you larp your way through a job interview. You save your real
 
 ## The problem
 
-Talking about experience you don't quite have is a real skill, and the only place to practice it is a real interview, where a slip costs you. Suspeeches gives you a safe place to try: a recruiter screen or a startup panel that pushes back like a real one, follow-up questions included, and a debrief that tells you exactly which answer gave you away.
+Holding a story together under follow-up questions is a real skill, whether it's an interview, a networking chat or a room full of strangers, and the only place to practice it is the real thing, where a slip costs you. Suspeeches gives you a safe place to try: characters who push back like real people, and a debrief that tells you exactly which answer gave you away.
 
 ## How it fits together
 
