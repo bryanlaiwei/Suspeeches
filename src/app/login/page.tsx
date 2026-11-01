@@ -3,8 +3,18 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/Auth";
+import { Avatar } from "@/components/Avatar";
 import { Button, Card, cx, ERROR_NOTE, FictionNote, Input, Label, Shell } from "@/components/ui";
 import { authEnabled, supabase } from "@/lib/client/supabase";
+import { PARTY_CAST, PRESETS } from "@/lib/presets";
+
+/** The people you might meet, each a little more suspicious than the last. */
+const LINEUP = [
+  { who: { ...PRESETS[0], name: PRESETS[0].character }, sus: 20 },
+  { who: { ...PRESETS[1], name: PRESETS[1].character }, sus: 45 },
+  { who: PARTY_CAST[0], sus: 70 },
+  { who: PARTY_CAST[2], sus: 90 },
+];
 
 export default function LoginPage() {
   const router = useRouter();
@@ -52,6 +62,21 @@ export default function LoginPage() {
           </h1>
           <p className="mt-4 font-bold text-muted">
             Sign in to save your real profile and every debrief. Your profile is only ever shown to the hidden judge.
+          </p>
+          <div className="mt-8 grid max-w-sm grid-cols-4 gap-2 sm:gap-3">
+            {LINEUP.map(({ who, sus }) => (
+              <div
+                key={who.name}
+                className="flex justify-center overflow-hidden rounded-2xl border-2 border-lav-2 pt-2 shadow-[0_4px_0_var(--lav-2)]"
+                style={{ background: `${who.accent}26` }}
+                title={who.name}
+              >
+                <Avatar palette={who} suspicion={sus} getLevel={() => 0} className="w-[85%]" />
+              </div>
+            ))}
+          </div>
+          <p className="mt-3 text-sm font-extrabold text-muted">
+            Dana, Priya, Maya and Jordan can smell a larp from a mile away.
           </p>
         </div>
         <Card>
