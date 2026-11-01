@@ -2,54 +2,14 @@
 
 import { useState } from "react";
 import { fmtTime } from "@/lib/context";
-import { playerArt, type CastMember } from "@/lib/presets";
+import type { CastMember } from "@/lib/presets";
 import type { EndReason } from "@/lib/types";
+import { Avatar } from "./Avatar";
 import { StageShell } from "./Shells";
-import { Btn, Bubble, cx, Face, Input } from "./ui";
+import { Btn, Bubble, cx, Input, suspicionColor } from "./ui";
 import { useAnimatedNumber } from "./useAnimatedNumber";
 
 /* ---------- 07: live call ---------- */
-
-/** Vertical "SUSPICION" meter: 10 blocks, green → yellow → red, with a "62% SUS" tag. */
-export function SusMeter({ value, pop }: { value: number; pop: { delta: number; key: number } | null }) {
-  const v = Math.max(0, Math.min(100, value));
-  const lit = Math.round(v / 10);
-  const blockColor = (i: number) => (i < 4 ? "var(--green)" : i < 7 ? "var(--yellow)" : "var(--red)");
-  return (
-    <div className="flex flex-col items-start" aria-label={`Suspicion ${Math.round(v)} percent`} role="meter" aria-valuenow={Math.round(v)}>
-      <span className="mb-2 text-xs font-black tracking-widest text-white">SUSPICION</span>
-      <div className="relative flex flex-col-reverse gap-1.5">
-        {Array.from({ length: 10 }, (_, i) => (
-          <div
-            key={i}
-            className="h-8 w-20 rounded-xl transition-colors duration-300"
-            style={{ background: i < lit ? blockColor(i) : "rgba(43,42,92,0.22)" }}
-          />
-        ))}
-        <div
-          className="absolute left-full ml-3 flex items-center transition-all duration-500"
-          style={{ bottom: `calc(${Math.max(lit - 1, 0) * 10}% + 2px)` }}
-        >
-          <span className="relative rounded-2xl bg-white px-4 py-2 text-ink shadow-[0_3px_0_var(--lav-2)]">
-            <span className="text-xl font-black tabular-nums">{Math.round(v)}%</span>
-            <span className="ml-1.5 text-xs font-black tracking-widest text-muted">SUS</span>
-            {pop && pop.delta !== 0 && (
-              <span
-                key={pop.key}
-                className="animate-sus-float absolute -top-6 right-1 text-base font-black"
-                style={{ color: pop.delta > 0 ? "var(--red)" : "var(--lime)" }}
-              >
-                {pop.delta > 0 ? "+" : ""}
-                {pop.delta}
-              </span>
-            )}
-          </span>
-        </div>
-      </div>
-      <span className="mt-2 text-xs font-black tracking-widest text-green">CHILL</span>
-    </div>
-  );
-}
 
 export function TimerCard({ remaining }: { remaining: number }) {
   const low = remaining < 30;
@@ -73,42 +33,55 @@ export function TimerCard({ remaining }: { remaining: number }) {
   );
 }
 
-/** One person on the call: big circle (1-on-1) or one of a row (group), with their own mini meter. */
+/** One person on the call with their own suspicion bar and +/- pop. */
 function OnCall({
   member,
   suspicion,
+  pop,
   talking,
   dimmed,
-  size,
-  showMeter,
+  width,
+  getLevel,
 }: {
   member: CastMember;
   suspicion: number;
+  pop: { delta: number; key: number } | null;
   talking: boolean;
   dimmed: boolean;
-  size: number;
-  showMeter: boolean;
+  width: number;
+  getLevel: () => number;
 }) {
   const shown = useAnimatedNumber(suspicion, 5);
   return (
-    <div className={cx("flex flex-col items-center transition duration-300", dimmed && "scale-95 opacity-70")}>
-      <div className="rounded-full p-4" style={{ background: "rgba(255,255,255,0.22)" }}>
-        <Face art={member.art} suspicion={shown} size={size} talking={talking} ring={talking ? "#d4f33a" : undefined} />
+    <div className={cx("flex flex-col items-center transition duration-300", dimmed && "scale-95 opacity-70")} style={{ width }}>
+      <div className="relative w-full">
+        <div className={cx("absolute inset-x-[8%] bottom-[4%] top-[6%] rounded-full bg-white/20 transition", talking && "ring-4 ring-lime")} />
+        <Avatar palette={member} suspicion={shown} getLevel={getLevel} className="relative w-full drop-shadow-xl" />
       </div>
-      {showMeter && (
-        <div className="mt-2 w-32 text-center">
-          <div className="text-sm font-black text-white">
-            {member.name} <span className="font-bold text-white/70">· {member.title}</span>
-          </div>
-          <div className="mt-1 h-3 overflow-hidden rounded-full bg-[rgba(43,42,92,0.25)]">
+      <div className="mt-2 w-full max-w-[220px] text-center">
+        <div className="text-sm font-black text-white">
+          {member.name} <span className="font-bold text-white/70">· {member.title}</span>
+        </div>
+        <div className="relative mt-1.5">
+          <div className="h-3.5 overflow-hidden rounded-full bg-[rgba(43,42,92,0.25)]">
             <div
               className="h-full rounded-full transition-all duration-500"
-              style={{ width: `${Math.max(0, Math.min(100, shown))}%`, background: shown < 40 ? "var(--green)" : shown < 70 ? "var(--yellow)" : "var(--red)" }}
+              style={{ width: `${Math.max(0, Math.min(100, shown))}%`, background: suspicionColor(shown) }}
             />
           </div>
-          <div className="mt-0.5 text-xs font-black tabular-nums text-white">{Math.round(shown)}% sus</div>
+          {pop && pop.delta !== 0 && (
+            <span
+              key={pop.key}
+              className="animate-sus-float absolute -top-6 right-0 text-base font-black"
+              style={{ color: pop.delta > 0 ? "var(--red)" : "var(--lime)" }}
+            >
+              {pop.delta > 0 ? "+" : ""}
+              {pop.delta}
+            </span>
+          )}
         </div>
-      )}
+        <div className="mt-0.5 text-xs font-black tabular-nums text-white">{Math.round(shown)}% sus</div>
+      </div>
     </div>
   );
 }
@@ -124,6 +97,7 @@ export function CallStage({
   userTalking,
   remaining,
   pop,
+  getLevel,
   shaking,
   status,
   muted,
@@ -140,7 +114,9 @@ export function CallStage({
   userLine: string | null;
   userTalking: boolean;
   remaining: number;
-  pop: { delta: number; key: number } | null;
+  /** Latest change: overall delta plus each character's own (groups). */
+  pop: { delta: number; key: number; by?: Record<string, number> } | null;
+  getLevel: (name: string) => number;
   shaking: boolean;
   /** Small status line under the people ("Sam is waiting… 3s", "Connecting…"). */
   status: { text: string; tone: "warn" | "red" | "soft" } | null;
@@ -154,12 +130,6 @@ export function CallStage({
     <StageShell right={<TimerCard remaining={remaining} />}>
       <div className="flex flex-1 flex-col">
         <div className="flex flex-1 gap-4 px-6 md:px-10">
-          {/* meter */}
-          <div className="hidden pt-4 sm:block">
-            <SusMeter value={suspicion} pop={pop} />
-            {group && <p className="mt-3 w-24 text-[11px] font-bold leading-tight text-white/70">Shows whoever is most suspicious</p>}
-          </div>
-
           {/* people + their latest line */}
           <div className={cx("flex flex-1 flex-col items-center", shaking && "animate-sus-shake")}>
             <div className="min-h-[96px] w-full max-w-2xl">
@@ -176,10 +146,11 @@ export function CallStage({
                   key={c.name}
                   member={c}
                   suspicion={suspicionBy?.[c.name] ?? suspicion}
+                  pop={pop ? { key: pop.key, delta: pop.by?.[c.name] ?? pop.delta } : null}
                   talking={active === c.name}
                   dimmed={group && !!active && active !== c.name}
-                  size={group ? 150 : 260}
-                  showMeter={group}
+                  width={group ? 190 : 280}
+                  getLevel={() => getLevel(c.name)}
                 />
               ))}
             </div>
@@ -196,7 +167,6 @@ export function CallStage({
               </span>
             )}
           </div>
-          <div className="hidden w-24 sm:block" />
         </div>
 
         {/* the desk */}
@@ -205,7 +175,16 @@ export function CallStage({
           <div className="mx-auto max-w-5xl bg-[#e07b00] px-6 pb-8 pt-6">
             <div className="mx-auto flex max-w-3xl items-start gap-4">
               <div className="flex flex-col items-center">
-                <Face art={playerArt(cast)} expression="chill" size={68} ring="#fff" talking={userTalking} />
+                <span
+                  className={cx(
+                    "flex h-[68px] w-[68px] items-center justify-center rounded-full bg-white text-green transition",
+                    userTalking && "animate-sus-bob ring-4 ring-lime",
+                  )}
+                >
+                  <svg viewBox="0 0 24 24" className="h-8 w-8" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                    <path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3ZM5 11a7 7 0 0 0 14 0M12 18v3" />
+                  </svg>
+                </span>
                 <span className="mt-1 text-xs font-black tracking-widest text-white">YOU</span>
               </div>
               <div className="flex-1 pt-2">

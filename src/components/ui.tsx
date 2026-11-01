@@ -1,7 +1,5 @@
-import Image from "next/image";
 import Link from "next/link";
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, TextareaHTMLAttributes } from "react";
-import type { Art } from "@/lib/presets";
 import { UserMenu } from "./Auth";
 
 export function cx(...parts: (string | false | null | undefined)[]) {
@@ -35,52 +33,6 @@ export function Logo({ onDark = false, href = "/", className = "" }: { onDark?: 
         <span className={onDark ? "text-white" : "text-ink"}>peeches</span>
       </span>
     </Link>
-  );
-}
-
-/* ---------- faces ---------- */
-
-export type Expression = "happy" | "chill" | "suspicious";
-
-/** Their face follows their suspicion: happy (trusting) → chill (unsure) → suspicious. */
-export function expressionFor(suspicion: number): Expression {
-  if (suspicion < 35) return "happy";
-  if (suspicion < 65) return "chill";
-  return "suspicious";
-}
-
-export function Face({
-  art,
-  suspicion,
-  expression,
-  size = 96,
-  talking = false,
-  ring,
-  className = "",
-  alt = "",
-}: {
-  art: Art;
-  suspicion?: number;
-  expression?: Expression;
-  size?: number;
-  talking?: boolean;
-  /** Ring colour (e.g. lime on purple, white on light). */
-  ring?: string;
-  className?: string;
-  alt?: string;
-}) {
-  const expr = expression ?? expressionFor(suspicion ?? 0);
-  return (
-    <span
-      className={cx("relative inline-block shrink-0 rounded-full transition-transform", talking && "animate-sus-bob", className)}
-      style={{
-        width: size,
-        height: size,
-        boxShadow: ring ? `0 0 0 ${Math.max(3, size / 28)}px ${ring}${talking ? `, 0 0 ${size / 4}px ${ring}` : ""}` : undefined,
-      }}
-    >
-      <Image src={`/avatars/${art}/${expr}.png`} alt={alt} width={size} height={size} className="h-full w-full rounded-full" priority />
-    </span>
   );
 }
 

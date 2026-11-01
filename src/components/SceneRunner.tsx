@@ -2,7 +2,7 @@
 
 import { useConversation } from "@elevenlabs/react";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/client/api";
 import { playCaught, playRelief, playSpike, playSurvived, unlockAudio } from "@/lib/client/sound";
 import type { SetupDraft } from "@/lib/client/storage";
@@ -13,7 +13,8 @@ import { SILENCE_FIRST_SEC, SILENCE_REPEAT_SEC, SPIKE_DELTA, START_SUSPICION } f
 import type { EndReason, PublicSessionState, SuspicionEvent, VoiceConnection } from "@/lib/types";
 import { CallStage, EndOverlay, MockInput } from "./CallScreen";
 import { fmtTime } from "@/lib/context";
-import { Button, Card, cx, Face, FictionNote, Shell } from "./ui";
+import { Avatar } from "./Avatar";
+import { Button, Card, cx, FictionNote, Shell } from "./ui";
 import type { LiveLine } from "./Transcript";
 import { useAnimatedNumber } from "./useAnimatedNumber";
 
@@ -35,7 +36,7 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
   const [voice, setVoice] = useState<VoiceConnection | null>(null);
   const [lines, setLines] = useState<LiveLine[]>([]);
   const [remaining, setRemaining] = useState(setup.timeLimitSec);
-  const [lastDelta, setLastDelta] = useState<{ delta: number; key: number } | null>(null);
+  const [lastDelta, setLastDelta] = useState<{ delta: number; key: number; by?: Record<string, number> } | null>(null);
   const [shaking, setShaking] = useState(false);
   const [ending, setEnding] = useState<EndReason | null>(null);
   const [userTalking, setUserTalking] = useState(false);
@@ -283,7 +284,11 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
   }
 
   function react(e: SuspicionEvent) {
-    setLastDelta({ delta: e.delta, key: e.turnIndex });
+    setLastDelta({
+      delta: e.delta,
+      key: e.turnIndex,
+      by: e.perCharacter ? Object.fromEntries(e.perCharacter.map((p) => [p.name, p.delta])) : undefined,
+    });
     if (e.kind === "silence") {
       playSpike(0.35);
       setShaking(true);
@@ -441,6 +446,22 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
   }, [phase, voice]);
 
 
+  const getLevel = useCallback((name: string) => {
+    // Only whoever is talking moves their mouth (1-on-1: the single NPC).
+    if (isGroup && speech.current.active !== name) return 0;
+    if (voiceRef.current?.mode === "elevenlabs") {
+      try {
+        return conversation.getOutputVolume();
+      } catch {
+        return 0;
+      }
+    }
+    // Mock: fake a talking envelope while speech synthesis runs.
+    if (!mock.current.speaking) return 0;
+    const t = performance.now() / 1000;
+    return 0.25 + 0.2 * Math.abs(Math.sin(t * 11)) + 0.1 * Math.sin(t * 23);
+  }, [conversation, isGroup]);
+
   /* ---------- render ---------- */
 
   const npcTalking = voice?.mode === "elevenlabs" ? conversation.isSpeaking : !!activeSpeaker;
@@ -487,6 +508,7 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
         userTalking={userTalking && !npcTalking}
         remaining={remaining}
         pop={lastDelta}
+        getLevel={getLevel}
         shaking={shaking}
         status={status}
         muted={voice?.mode === "elevenlabs" ? conversation.isMuted : null}
@@ -527,7 +549,7 @@ function Briefing({
     <div className="mx-auto grid w-full max-w-4xl items-center gap-8 pt-6 md:grid-cols-[1fr_1.2fr]">
       <div className={cx("mx-auto flex justify-center", cast.length > 1 ? "-space-x-6" : "")}>
         {cast.map((c, i) => (
-          <Face key={i} art={c.art} expression="happy" size={cast.length > 1 ? 140 : 250} ring={cast.length > 1 ? "#fff" : undefined} />
+          <Avatar key={i} palette={c} suspicion={START_SUSPICION} getLevel={() => 0} className={cast.length > 1 ? "w-36" : "w-64"} />
         ))}
       </div>
       <Card>

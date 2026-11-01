@@ -8,7 +8,8 @@ import { ShareCard } from "@/components/ShareCard";
 import { EventDetail, SuspicionBar } from "@/components/SuspicionBar";
 import { Timeline } from "@/components/Timeline";
 import { Transcript, type LiveLine } from "@/components/Transcript";
-import { Button, Card, cx, Face, Shell } from "@/components/ui";
+import { Avatar } from "@/components/Avatar";
+import { Button, Card, cx, Shell } from "@/components/ui";
 import { useAnimatedNumber } from "@/components/useAnimatedNumber";
 import { api } from "@/lib/client/api";
 import { supabase } from "@/lib/client/supabase";
@@ -142,7 +143,7 @@ function Debrief() {
       <div className="grid items-center gap-6 md:grid-cols-[auto_1fr_auto]">
         <div className="w-40">
           <SuspicionBar value={barValue} events={[]} selected={null} onSelect={() => {}} lastDelta={null} shaking={false} />
-          <Face art={(cast.find((c) => c.name === d.caughtBy) ?? cast[0]).art} suspicion={barValue} size={160} className="mt-2" />
+          <Avatar palette={cast.find((c) => c.name === d.caughtBy) ?? cast[0]} suspicion={barValue} getLevel={() => 0} className="mt-2 w-40" />
         </div>
         <div>
           <div

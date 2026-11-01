@@ -4,7 +4,7 @@
 
 > All characters are fictional. Suspeeches is for practice and entertainment only.
 
-The name is suspicious + speeches. The look: purple stage, Nunito and Bricolage Grotesque, chunky 3D buttons, and four cartoon faces (`public/avatars/<set>/{happy,chill,suspicious}.png`) whose expression follows each character's suspicion (happy under 35, chill under 65, suspicious above). During a call only the latest line from each side is on screen; the full transcript is on the debrief.
+The name is suspicious + speeches. The look: purple stage, Nunito and Bricolage Grotesque, chunky 3D buttons. Characters are the drawn SVG faces in `src/components/Avatar.tsx`: the mouth moves with their voice, and eyes, brows and cheeks get more suspicious as their bar rises. During a call each character has their own suspicion bar, and only the latest line from each side is on screen; the full transcript is on the debrief.
 
 See [PLAN.md](PLAN.md) for the architecture and build order.
 
@@ -126,6 +126,6 @@ scripts/              create-agents.ts, test-judge.ts, fixtures/
 src/lib/              env, schemas (zod), llm (structured call + retry), judge, gap, summarize,
                       sessions (in-memory), scoring, timing, elevenlabs, handler, mock
 src/lib/client/       storage (localStorage), sound cues (WebAudio), api
-src/components/       SceneRunner, CallScreen (live call), Shells, SuspicionBar, Transcript, Timeline, ShareCard, Auth, ui (theme kit + Face)
+src/components/       Avatar, SceneRunner, CallScreen (live call), Shells, SuspicionBar, Transcript, Timeline, ShareCard, Auth, ui (theme kit)
 src/app/              / · /login · /account (profile) · /setup · /scene · /debrief · /history · /api/*
 ```

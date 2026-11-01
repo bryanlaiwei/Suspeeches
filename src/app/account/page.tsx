@@ -3,7 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { RequireAuth } from "@/components/Auth";
-import { Button, Card, Face, FictionNote, Input, Label, Shell, Textarea } from "@/components/ui";
+import { Avatar } from "@/components/Avatar";
+import { Button, Card, FictionNote, Input, Label, Shell, Textarea } from "@/components/ui";
 import { fetchProfile, storeProfile } from "@/lib/client/profileStore";
 import { PRESETS } from "@/lib/presets";
 import { ProfileSchema } from "@/lib/schemas";
@@ -109,7 +110,7 @@ function ProfileForm() {
                   }}
                 />
               </div>
-              <Face art={PRESETS[0].art} suspicion={demoSus} size={176} />
+              <Avatar palette={PRESETS[0]} suspicion={demoSus} getLevel={() => 0} className="w-44" />
             </div>
             <ol className="space-y-2 pb-4 text-sm text-ink/80">
               <li>1. Tell us who you really are</li>

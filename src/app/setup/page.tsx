@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { RequireAuth, useAuth } from "@/components/Auth";
 import { useEffect, useMemo, useState } from "react";
-import { Button, Card, cx, Face, FictionNote, Input, Label, Shell, Textarea } from "@/components/ui";
+import { Avatar } from "@/components/Avatar";
+import { Button, Card, cx, FictionNote, Input, Label, Shell, Textarea } from "@/components/ui";
 import { api } from "@/lib/client/api";
 import { fetchProfile } from "@/lib/client/profileStore";
 import { loadSetupDraft, saveSetupDraft } from "@/lib/client/storage";
@@ -197,11 +198,11 @@ function SetupPageInner() {
                   {p.id === "party" ? (
                     <span className="flex shrink-0 -space-x-7">
                       {PARTY_CAST.map((c) => (
-                        <Face key={c.name} art={c.art} expression="happy" size={56} ring="#fff" />
+                        <Avatar key={c.name} palette={c} suspicion={15} getLevel={() => 0} className="h-14 w-14" />
                       ))}
                     </span>
                   ) : (
-                    <Face art={p.art} expression="happy" size={64} />
+                    <Avatar palette={p} suspicion={15} getLevel={() => 0} className="h-16 w-16 shrink-0" />
                   )}
                   <span>
                     <span className="block font-semibold">{p.label}</span>
@@ -424,7 +425,7 @@ function GroupBuilder({
       </label>
       {group.characters.map((c, i) => (
         <div key={i} className="flex gap-3 rounded-xl border border-line bg-bg/40 p-3">
-          <Face art={preview[i].art} expression="happy" size={56} />
+          <Avatar palette={preview[i]} suspicion={15} getLevel={() => 0} className="h-14 w-14 shrink-0" />
           <div className="grid flex-1 gap-2 sm:grid-cols-2">
             <Input value={c.name} onChange={(e) => setChar(i, { name: e.target.value })} placeholder={`Character ${i + 1} name`} />
             <select
