@@ -67,6 +67,17 @@ export function getHandler(): HandlerChannel {
   return handler;
 }
 
+/** Send the follow-up for a finished game right now, to the given address (debrief "Send" button). */
+export async function sendFollowupNow(s: Session, email: string): Promise<void> {
+  const h = getHandler();
+  if (!h.enabled) throw new Error("Email isn't set up on this server (AGENTBOXD_API_KEY is missing).");
+  if (!s.followup) throw new Error("The follow-up isn't written yet. Try again in a few seconds.");
+  if (!s.profile.email) s.profile = { ...s.profile, email };
+  s.handler.enabled = true;
+  s.handler.error = null;
+  await h.sendFollowup(s);
+}
+
 /** Fire-and-forget wrapper: handler problems must never break the game. */
 export function runHandler(s: Session, task: (h: HandlerChannel) => Promise<void>): void {
   const h = getHandler();

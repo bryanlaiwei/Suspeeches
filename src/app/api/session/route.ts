@@ -12,7 +12,9 @@ export async function POST(req: Request) {
   if (!auth.ok) return auth.res;
   const body = await parseBody(req, CreateSessionBodySchema);
   if (!body.ok) return body.res;
-  const { profile, setup } = body.data;
+  const { setup } = body.data;
+  // Follow-up emails go to the profile email, or the sign-in email if the profile has none.
+  const profile = { ...body.data.profile, email: body.data.profile.email || auth.owner?.email || "" };
   if (setup.scenarioId === "custom" && !setup.custom) {
     return Response.json({ error: "Custom scenario needs a character" }, { status: 400 });
   }

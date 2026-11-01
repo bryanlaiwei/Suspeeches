@@ -64,6 +64,19 @@ function Debrief() {
 
   useEffect(() => () => cancelAnimationFrame(raf.current), []);
 
+  // While the follow-up email is sending, refresh a few times so the card shows "Sent to …".
+  const sending = !!state?.followup && !state.followup.sentTo && state.handler.enabled && !state.handler.error;
+  useEffect(() => {
+    if (!sending || !id) return;
+    let tries = 0;
+    const t = setInterval(async () => {
+      if (++tries > 10) return clearInterval(t);
+      const res = await fetch(`/api/session/${id}`).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+      if (res?.state) setState(res.state);
+    }, 2000);
+    return () => clearInterval(t);
+  }, [sending, id]);
+
   const d = state?.debrief;
   const duration = d ? Math.max(d.durationSec, state!.events.at(-1)?.tSec ?? 0, 1) : 1;
 
@@ -300,11 +313,7 @@ function Debrief() {
                 </div>
                 <p className="whitespace-pre-wrap leading-relaxed text-ink/90">{state.followup.body}</p>
               </div>
-              <p className="mt-2 text-xs text-muted">
-                {state.handler.enabled
-                  ? "Also sent to your inbox."
-                  : "Tick the handler email box in setup to get these in your inbox."}
-              </p>
+              <FollowupStatus state={state} onSent={setState} />
             </Card>
           )}
 
@@ -332,6 +341,36 @@ function Debrief() {
         </div>
       </div>
     </Shell>
+  );
+}
+
+function FollowupStatus({ state, onSent }: { state: PublicSessionState; onSent: (s: PublicSessionState) => void }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const f = state.followup!;
+  if (f.sentTo) return <p className="mt-2 text-xs text-clean">Sent to {f.sentTo}. Check your inbox (and spam).</p>;
+  if (state.handler.enabled && !state.handler.error) return <p className="mt-2 text-xs text-muted">On its way to your inbox…</p>;
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-3">
+      <Button
+        variant="ghost"
+        disabled={busy}
+        onClick={async () => {
+          setBusy(true);
+          setErr(null);
+          try {
+            onSent((await api.sendFollowup(state.id)).state);
+          } catch (e) {
+            setErr(e instanceof Error ? e.message : String(e));
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        {busy ? "Sending…" : "📨 Send to my inbox"}
+      </Button>
+      {(err || state.handler.error) && <span className="text-xs text-sus">{err ?? state.handler.error}</span>}
+    </div>
   );
 }
 

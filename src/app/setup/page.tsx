@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { RequireAuth } from "@/components/Auth";
+import { RequireAuth, useAuth } from "@/components/Auth";
 import { useEffect, useMemo, useState } from "react";
 import { Avatar } from "@/components/Avatar";
 import { Button, Card, cx, FictionNote, Input, Label, Shell, Textarea } from "@/components/ui";
@@ -39,7 +39,8 @@ function SetupPageInner() {
   const [draftClaim, setDraftClaim] = useState("");
   const [goal, setGoal] = useState(PRESETS[0].defaultGoal);
   const [timeLimitSec, setTimeLimitSec] = useState(180);
-  const [emailHandler, setEmailHandler] = useState(false);
+  const [emailHandler, setEmailHandler] = useState(true);
+  const { user } = useAuth();
   const [suggestions, setSuggestions] = useState<{ claim: string; why: string }[]>([]);
   const [suggesting, setSuggesting] = useState(false);
   const [gap, setGap] = useState<GapResult | null>(null);
@@ -63,7 +64,7 @@ function SetupPageInner() {
       if (d?.claims?.length) setClaims(d.claims);
       if (d?.goal) setGoal(d.goal);
       if (d?.timeLimitSec) setTimeLimitSec(d.timeLimitSec);
-      if (d?.emailHandler && p.email) setEmailHandler(true);
+      if (d && d.emailHandler === false) setEmailHandler(false);
       if (d?.gap && d.gapFor) {
         setGap(d.gap);
         setGapFor(d.gapFor);
@@ -72,6 +73,7 @@ function SetupPageInner() {
   }, [router]);
 
   const preset = presetFor(scenarioId);
+  const emailTo = profile?.email || user?.email || "";
   const isGroup = scenarioId === "party" || scenarioId === "group";
   const audience =
     scenarioId === "custom"
@@ -138,7 +140,7 @@ function SetupPageInner() {
       claims,
       goal,
       timeLimitSec,
-      emailHandler: emailHandler && !!profile.email,
+      emailHandler: emailHandler && !!emailTo,
     });
     if (!parsed.success) {
       const issue = parsed.error.issues[0];
@@ -343,20 +345,26 @@ function SetupPageInner() {
                 </button>
               ))}
             </div>
-            <label className={cx("flex items-center gap-3 text-sm", !profile.email && "opacity-50")}>
+            <label className={cx("flex items-center gap-3 text-sm", !emailTo && "opacity-50")}>
               <input
                 type="checkbox"
-                checked={emailHandler}
-                disabled={!profile.email}
+                checked={emailHandler && !!emailTo}
+                disabled={!emailTo}
                 onChange={(e) => setEmailHandler(e.target.checked)}
                 className="h-4 w-4 accent-[var(--brand)]"
               />
               <span>
-                Have the character email me a follow-up afterwards
-                {!profile.email && (
+                {emailTo ? (
                   <>
-                    {" "}
-                    (<Link href="/account" className="underline">add an email</Link> first)
+                    Email me the character&apos;s follow-up afterwards, to <strong className="text-ink">{emailTo}</strong>
+                  </>
+                ) : (
+                  <>
+                    Email me the character&apos;s follow-up afterwards (
+                    <Link href="/account" className="underline">
+                      add an email
+                    </Link>{" "}
+                    first)
                   </>
                 )}
               </span>

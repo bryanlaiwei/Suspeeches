@@ -29,4 +29,5 @@ export const api = {
   end: (id: string, reason: "timeout" | "npc_ended" | "left" | "error", tSec: number) =>
     post<{ state: PublicSessionState }>(`/api/session/${id}/end`, { reason, tSec }),
   debrief: (id: string) => post<{ state: PublicSessionState }>(`/api/session/${id}/debrief`, {}),
+  sendFollowup: (id: string) => post<{ state: PublicSessionState }>(`/api/session/${id}/followup`, {}),
 };
