@@ -317,7 +317,7 @@ function Debrief() {
             <p className="text-xs text-muted">
               {state.handler.error
                 ? `Handler email failed: ${state.handler.error}`
-                : `Your handler${state.handler.address ? ` (${state.handler.address})` : ""} is emailing you this debrief.`}
+                : `${state.followup?.sender ?? "The character"}'s follow-up is on its way to your inbox.`}
             </p>
           )}
 

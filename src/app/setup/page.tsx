@@ -352,7 +352,7 @@ function SetupPageInner() {
                 className="h-4 w-4 accent-[var(--brand)]"
               />
               <span>
-                Email me: a brief before, the debrief after, and the characters&apos; follow-up
+                Have the character email me a follow-up afterwards
                 {!profile.email && (
                   <>
                     {" "}

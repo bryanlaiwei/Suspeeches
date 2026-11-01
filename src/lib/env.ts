@@ -18,9 +18,6 @@ export const env = {
   get summaryModel() {
     return process.env.SUMMARY_MODEL || "claude-opus-5-5";
   },
-  get handlerClientId() {
-    return process.env.AGENTBOXD_HANDLER_CLIENT_ID || "sus-handler";
-  },
   agentId(scenario: string): string {
     const key = `ELEVENLABS_AGENT_ID_${scenario.toUpperCase()}`;
     return process.env[key] ?? "";

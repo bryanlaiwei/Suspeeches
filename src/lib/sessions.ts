@@ -95,7 +95,7 @@ export function createSession(profile: Profile, setup: Setup, gap: GapResult, ap
     debrief: null,
     debriefPromise: null,
     followup: null,
-    handler: { enabled: false, address: null, briefSent: false, debriefSent: false, error: null },
+    handler: { enabled: false, error: null },
     appUrl,
     owner,
     queue: Promise.resolve(),

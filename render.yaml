@@ -42,5 +42,3 @@ services:
         value: sb_publishable_L3odz5yWjb8ucVm6hViqLw_ucuxAfRX
       - key: AGENTBOXD_API_KEY
         sync: false
-      - key: AGENTBOXD_HANDLER_CLIENT_ID
-        value: sus-handler

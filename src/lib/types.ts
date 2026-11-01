@@ -124,7 +124,8 @@ export interface PublicSessionState {
   durationSec: number | null;
   debrief: Debrief | null;
   followup: Followup | null;
-  handler: { enabled: boolean; address: string | null; briefSent: boolean; debriefSent: boolean; error: string | null };
+  /** Follow-up email delivery (Agentboxd). */
+  handler: { enabled: boolean; error: string | null };
 }
 
 export interface EventResponse {

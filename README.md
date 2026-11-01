@@ -91,8 +91,7 @@ Other checks: `npm run typecheck`, `npm run lint`, `npm run build`.
 | `ELEVENLABS_AGENT_ID_CUSTOM` | for custom scenes | Agent with the voice override enabled |
 | `ELEVENLABS_AGENT_ID_PARTY` | for the launch party | Multi-voice agent (Maya, Theo, Jordan) |
 | `ELEVENLABS_AGENT_ID_GROUP` | for custom groups | Multi-voice agent with six voice tags |
-| `AGENTBOXD_API_KEY` | no | Handler inbox emails (brief before, debrief after) |
-| `AGENTBOXD_HANDLER_CLIENT_ID` | no (default `sus-handler`) | Idempotent id for the handler inbox |
+| `AGENTBOXD_API_KEY` | no | Character follow-up emails after each scene |
 | `PUBLIC_APP_URL` | no | Link in debrief emails (Render's `RENDER_EXTERNAL_URL` is used otherwise) |
 | `NEXT_PUBLIC_SUPABASE_URL` | for accounts | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | for accounts | Supabase publishable key (safe to expose) |
@@ -109,15 +108,11 @@ There is no NPC model variable: the NPC's LLM is chosen inside each ElevenLabs a
 
 Render serves HTTPS, which browsers require for microphone access. Sessions live in memory, so keep one instance; on the free plan the service sleeps when idle and in-flight scenes are lost (use the starter plan for demos).
 
-## Agentboxd emails
+## Agentboxd follow-up email
 
-If `AGENTBOXD_API_KEY` is set and the player gives an email and ticks the box on the setup screen, three emails go out:
+If `AGENTBOXD_API_KEY` is set and the player gives an email and ticks the box on the setup screen, Sus sends exactly one email per scene: an **in-character follow-up** from the character's own inbox (Dana, Priya, Maya, Theo and Jordan each have one; custom characters share one that is renamed per send), seconds after the scene ends. It's written by `GAP_MODEL` from `prompts/followup.v1.md` using the transcript, the goal and how you did: reached the goal → a concrete next step (interview slot, investor intro, after-party address); survived without it → noncommittal; caught → a cool brush-off that hints at what didn't add up (from whoever caught you in a group); walked out → a reaction to that. It ends with a footer saying it comes from a fictional character in a practice game.
 
-1. **Brief** (scene start), from the "handler" inbox: cover story, objective, clock, larp gap, hardest claims.
-2. **Debrief** (seconds after the scene ends), from the handler: outcome, score, claim verdicts, biggest tells, tips.
-3. **In-character follow-up**, from the character's own inbox (Dana, Priya, Maya, Theo and Jordan each have one; custom characters share one that is renamed per send). It's written by `GAP_MODEL` from `prompts/followup.v1.md` using the transcript, the goal and how you did: reached the goal → a concrete next step (interview slot, investor intro, after-party address); survived without it → noncommittal; caught → a cool brush-off that hints at what didn't add up (from whoever caught you in a group); walked out → a reaction to that. Every follow-up ends with a footer saying it comes from a fictional character in a practice game.
-
-The follow-up also appears on the debrief page, even with email off. Inboxes are created idempotently on `client_id` (`sus-handler`, `sus-npc-<name>`, `sus-npc-custom`). Everything sits behind the `HandlerChannel` interface in [src/lib/handler.ts](src/lib/handler.ts) and never blocks the game. Mind Agentboxd's send caps for new workspaces.
+The follow-up also appears on the debrief page, even with email off. Inboxes are created idempotently on `client_id` (`sus-npc-<name>`, `sus-npc-custom`). The sender sits behind the `HandlerChannel` interface in [src/lib/handler.ts](src/lib/handler.ts) and never blocks the game. Mind Agentboxd's send caps for new workspaces.
 
 ## Layout
 
