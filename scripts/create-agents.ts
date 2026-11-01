@@ -64,7 +64,14 @@ function agentBody(scenario: (typeof SCENARIOS)[number]) {
           llm: sheet.meta.llm,
           temperature: 0.7,
           built_in_tools: {
-            end_call: { type: "system", name: "end_call", description: "", params: { system_tool_type: "end_call" } },
+            end_call: {
+              type: "system",
+              name: "end_call",
+              // Without this the LLM sometimes hangs up mid-conversation.
+              description:
+                "Hang up the call. ONLY use this right after you have said an explicit goodbye in your previous message, and only for one of these reasons: you granted the player's goal, the player said they want to leave, or you received a decision note telling you to end the conversation. NEVER use it in the middle of a conversation, never in the same turn as a question, and never just because a topic is finished. If unsure, do not call it and keep talking.",
+              params: { system_tool_type: "end_call" },
+            },
           },
         },
         dynamic_variables: { dynamic_variable_placeholders: used },
