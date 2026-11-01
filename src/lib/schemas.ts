@@ -13,7 +13,7 @@ export const ProfileSchema = z.object({
 });
 export type Profile = z.infer<typeof ProfileSchema>;
 
-export const ScenarioIdSchema = z.enum(["recruiter", "bartender", "networking", "custom"]);
+export const ScenarioIdSchema = z.enum(["recruiter", "networking", "custom"]);
 export type ScenarioId = z.infer<typeof ScenarioIdSchema>;
 
 export const CustomCharacterSchema = z.object({

@@ -29,7 +29,7 @@
                     suspicion, reasons, hint ◀──────┘ (clamped, zod-validated)
 ```
 
-* **NPC** — one ElevenLabs agent per preset (recruiter, bartender, networking) plus one "custom" agent with prompt/first-message/voice overrides enabled. Cover story arrives as `dynamicVariables` (`{{cover_story}}`, `{{alias}}`, `{{scene_goal}}`). The real profile never leaves our server except to Anthropic.
+* **NPC** — one ElevenLabs agent per preset (recruiter, networking) plus one "custom" agent with prompt/first-message/voice overrides enabled. Cover story arrives as `dynamicVariables` (`{{cover_story}}`, `{{alias}}`, `{{scene_goal}}`). The real profile never leaves our server except to Anthropic.
 * **Judge** — runs per user turn, in parallel with the NPC (client fires the request and keeps talking). Server serializes judge calls per session, clamps `delta` to [-15, 25], validates with zod, retries once.
 * **Gap estimator** — before the scene: how far the claims are from the real profile → difficulty multiplier 1.0–3.0.
 * **Summarizer** — once at the end → debrief JSON. Server overwrites authoritative numbers (outcome, final suspicion, gap, score).

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { SceneRunner } from "@/components/SceneRunner";
 import { loadProfile, loadSetupDraft, type SetupDraft } from "@/lib/client/storage";
-import type { Profile } from "@/lib/schemas";
+import { SetupSchema, type Profile } from "@/lib/schemas";
 
 export default function ScenePage() {
   const router = useRouter();
@@ -15,7 +15,7 @@ export default function ScenePage() {
     const profile = loadProfile();
     const draft = loadSetupDraft();
     if (!profile) return router.replace("/");
-    if (!draft?.claims?.length || !draft.gap) return router.replace("/setup");
+    if (!draft?.claims?.length || !draft.gap || !SetupSchema.safeParse(draft).success) return router.replace("/setup");
     // eslint-disable-next-line react-hooks/set-state-in-effect -- hydrate from localStorage once on mount
     setData({ profile, draft });
   }, [router]);

@@ -10,7 +10,7 @@ See [PLAN.md](PLAN.md) for the architecture and build order.
 
 | Role | Runs on | Knows |
 | --- | --- | --- |
-| **NPC** (Dana the recruiter, Rico the bartender, Priya the founder, or your custom character) | An ElevenLabs agent: its own speech-to-text, LLM and voice | Its character sheet + your cover story (passed as dynamic variables). Never your real profile. |
+| **NPC** (Dana the recruiter, Priya the founder, or your custom character) | An ElevenLabs agent: its own speech-to-text, LLM and voice | Its character sheet + your cover story (passed as dynamic variables). Never your real profile. |
 | **Judge** | Anthropic `JUDGE_MODEL`, after every user turn, in parallel with the NPC | Real profile, cover story, transcript, timing signals |
 | **Gap estimator** | Anthropic `GAP_MODEL`, before the scene | Real profile + cover story → difficulty multiplier ×1.0–3.0 |
 | **Summarizer** | Anthropic `SUMMARY_MODEL`, once at the end | Everything → debrief JSON |
@@ -37,7 +37,7 @@ Without keys, `npm run dev` falls back to **mock mode** (a development aid): heu
 ### Create the ElevenLabs agents (once)
 
 ```bash
-npm run agents:create              # creates all four agents
+npm run agents:create              # creates all three agents
 npm run agents:create recruiter    # or just one
 ```
 
@@ -65,7 +65,6 @@ Other checks: `npm run typecheck`, `npm run lint`, `npm run build`.
 | `SUMMARY_MODEL` | no (default `claude-opus-5-5`) | End-of-scene debrief |
 | `ELEVENLABS_API_KEY` | yes | Mint conversation tokens; create agents |
 | `ELEVENLABS_AGENT_ID_RECRUITER` | yes | Agent for the recruiter preset |
-| `ELEVENLABS_AGENT_ID_BARTENDER` | yes | Agent for the bar preset |
 | `ELEVENLABS_AGENT_ID_NETWORKING` | yes | Agent for the networking preset |
 | `ELEVENLABS_AGENT_ID_CUSTOM` | for custom scenes | Agent with the voice override enabled |
 | `AGENTBOXD_API_KEY` | no | Handler inbox emails (brief before, debrief after) |

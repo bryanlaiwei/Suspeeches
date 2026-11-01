@@ -11,7 +11,7 @@ export async function GET() {
       anthropic: !!env.anthropicKey,
       elevenlabs: !!env.elevenLabsKey,
       agents: Object.fromEntries(
-        ["recruiter", "bartender", "networking", "custom"].map((s) => [s, !!env.agentId(s)]),
+        ["recruiter", "networking", "custom"].map((s) => [s, !!env.agentId(s)]),
       ),
       agentboxd: !!env.agentboxdKey,
     },

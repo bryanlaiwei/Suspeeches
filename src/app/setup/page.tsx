@@ -8,7 +8,7 @@ import { Button, Card, cx, FictionNote, Input, Label, Shell, Textarea } from "@/
 import { api } from "@/lib/client/api";
 import { loadProfile, loadSetupDraft, saveSetupDraft } from "@/lib/client/storage";
 import { CUSTOM_PRESET, PRESETS, presetFor, VOICES } from "@/lib/presets";
-import { SetupSchema, type GapResult, type Profile, type ScenarioId } from "@/lib/schemas";
+import { ScenarioIdSchema, SetupSchema, type GapResult, type Profile, type ScenarioId } from "@/lib/schemas";
 
 const TIME_OPTIONS = [120, 180, 300, 480];
 
@@ -41,7 +41,7 @@ export default function SetupPage() {
     /* eslint-disable react-hooks/set-state-in-effect -- hydrate from localStorage once on mount */
     setProfile(p);
     setAlias(d?.alias || p.name);
-    if (d?.scenarioId) setScenarioId(d.scenarioId);
+    if (d?.scenarioId && ScenarioIdSchema.safeParse(d.scenarioId).success) setScenarioId(d.scenarioId);
     if (d?.custom) setCustom({ ...d.custom, setting: d.custom.setting ?? "" });
     if (d?.claims?.length) setClaims(d.claims);
     if (d?.goal) setGoal(d.goal);

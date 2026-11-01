@@ -13,7 +13,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { parseFrontmatter } from "../src/lib/prompts";
 
-const SCENARIOS = ["recruiter", "bartender", "networking", "custom"] as const;
+const SCENARIOS = ["recruiter", "networking", "custom"] as const;
 
 const PLACEHOLDERS: Record<string, string> = {
   alias: "Alex",

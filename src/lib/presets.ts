@@ -29,18 +29,6 @@ export const PRESETS: ScenarioPreset[] = [
     hairStyle: "long",
   },
   {
-    id: "bartender",
-    label: "Bar small talk",
-    character: "Rico",
-    title: "Bartender at The Copper Fox",
-    blurb: "A quiet weeknight. Rico loves catching people in tall tales.",
-    defaultGoal: "Get Rico to comp your drink because he's impressed by you.",
-    skin: "#c98e63",
-    hair: "#151515",
-    accent: "#ff8a3d",
-    hairStyle: "short",
-  },
-  {
     id: "networking",
     label: "Networking mixer",
     character: "Priya",
