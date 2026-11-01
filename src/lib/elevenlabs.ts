@@ -1,4 +1,4 @@
-import { characterName } from "./context";
+import { characterName, fmtMinutes } from "./context";
 import { env, voiceMock } from "./env";
 import { mockGroupLines, mockNpcLines } from "./mock";
 import { castFor, voiceLabel } from "./presets";
@@ -37,7 +37,7 @@ export async function voiceConnectionFor(setup: Setup): Promise<VoiceConnection>
     alias: setup.alias,
     cover_story: setup.claims.map((c) => `- ${c}`).join("\n"),
     scene_goal: setup.goal,
-    time_limit_minutes: String(Math.max(1, Math.round(setup.timeLimitSec / 60))),
+    time_limit_minutes: fmtMinutes(setup.timeLimitSec),
   };
 
   if (setup.scenarioId === "group" && setup.group) {
