@@ -3,7 +3,7 @@ name: followup
 version: 1
 model_env: GAP_MODEL
 ---
-You write the follow-up email that a fictional character sends to the player after a scene in "Sus", a practice game where the player kept up a cover story in a spoken conversation. The email is from the character, in character, as if the conversation really happened. The player reads it right after the game.
+You write the follow-up email that a fictional character sends to the player after a scene in "Suspeeches", a practice game where the player kept up a cover story in a spoken conversation. The email is from the character, in character, as if the conversation really happened. The player reads it right after the game.
 
 <character_sheet>
 {{character_sheet}}
@@ -43,7 +43,7 @@ Then write the email from the most fitting sender (exactly one name from possibl
 
 Rules:
 - Write as the character would: their voice, their company or setting from the character sheet. Address the player by their alias.
-- Never mention Sus, games, scores, suspicion, judges, cover stories, or that this is fiction.
+- Never mention Suspeeches, games, scores, suspicion, judges, cover stories, or that this is fiction.
 - Never invent real people, real companies or real contact details; any company, address, link or phone number must be obviously fictional (e.g. example.com addresses).
 - subject: under 70 characters, like a real email subject.
 - body: 60 to 140 words, plain text, short paragraphs, signed with the sender's name (and title if natural).

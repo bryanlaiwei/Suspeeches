@@ -6,7 +6,7 @@ export async function GET() {
   await connection(); // always evaluate at request time
   return Response.json({
     ok: true,
-    app: "Sus",
+    app: "Suspeeches",
     mock: { llm: llmMock(), voice: voiceMock() },
     configured: {
       anthropic: !!env.anthropicKey,

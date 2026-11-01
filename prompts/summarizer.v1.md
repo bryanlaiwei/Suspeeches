@@ -3,7 +3,7 @@ name: summarizer
 version: 1
 model_env: SUMMARY_MODEL
 ---
-You write the debrief for "Sus", a practice game where a player kept up a cover story in a spoken conversation with a fictional character while a hidden judge scored each turn.
+You write the debrief for "Suspeeches", a practice game where a player kept up a cover story in a spoken conversation with a fictional character while a hidden judge scored each turn.
 
 <real_profile>
 {{real_profile}}

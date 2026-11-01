@@ -1,16 +1,28 @@
-# Sus
+# Suspeeches
 
 **Don't give yourself away.** A voice game for LarpHacks: you store your real profile, pick a cover story, then talk out loud to an AI character who only knows your claims. A hidden judge scores every turn, the suspicion bar above the character's head moves live, and at 100 you're caught. Survive the clock (or get the character to wrap up happy) and you get a debrief, a score and a share card.
 
-> All characters are fictional. Sus is for practice and entertainment only.
+> All characters are fictional. Suspeeches is for practice and entertainment only.
 
 See [PLAN.md](PLAN.md) for the architecture and build order.
+
+## The flow
+
+1. **Onboarding** → sign in.
+2. **Profile**: the real you, filled in once (only the hidden judge sees it).
+3. **Build your cover**: the fake you (name, job title, years, projects, skills, goal). Your claims are built from it; **Randomize** picks a ready-made fake persona.
+4. **Pick a scenario**: Sam (recruiter), Dana (industry peer), the startup panel (Maya, Theo, Jordan), your own character, or your own crowd, plus **their mood going in**: Chill (starts at 10% suspicion, doubt counts ×0.8, score ×0.85), Sharp (20%, ×1, ×1) or Paranoid (30%, ×1.25, ×1.3). The character is told their mood too.
+5. **Home → call invite → live call**: only the latest line from each side is shown (no history on screen). Faces switch Happy → Chill → Suspicious as suspicion rises; the vertical meter shows suspicion (the most suspicious person in a group).
+6. **Results**: larp score (0-100), final suspicion, replies that didn't raise eyebrows, biggest slip-up, best moment, retry / new scenario / share, and the full breakdown (timeline, claim verdicts, tips, replay, follow-up) below.
+7. **Messages**: call invites and the characters' follow-ups.
+
+Character art lives in `public/avatars/<recruiter|peer|custom-male|custom-female>/{happy,chill,suspicious}.png`; the player is always `custom-female`.
 
 ## How it works
 
 | Role | Runs on | Knows |
 | --- | --- | --- |
-| **NPC** (Dana the recruiter, Priya the founder, or your custom character) | An ElevenLabs agent: its own speech-to-text, LLM and voice | Its character sheet + your cover story (passed as dynamic variables). Never your real profile. |
+| **NPC** (Sam the recruiter, Dana the industry peer, or your custom character) | An ElevenLabs agent: its own speech-to-text, LLM and voice | Its character sheet + your cover story (passed as dynamic variables). Never your real profile. |
 | **Judge** | Anthropic `JUDGE_MODEL`, after every user turn, in parallel with the NPC | Real profile, cover story, transcript, timing signals |
 | **Gap estimator** | Anthropic `GAP_MODEL`, before the scene | Real profile + cover story → difficulty multiplier ×1.0–3.0 |
 | **Summarizer** | Anthropic `SUMMARY_MODEL`, once at the end | Everything → debrief JSON |
@@ -26,7 +38,7 @@ See [PLAN.md](PLAN.md) for the architecture and build order.
 
 ## Group scenes
 
-Besides the 1-on-1 characters (Dana the recruiter, Priya the founder, or your own), there are two group scenes where up to three people talk to you at once:
+Besides the 1-on-1 characters (Sam the recruiter, Dana the industry peer, or your own), there are two group scenes where up to three people talk to you at once:
 
 * **Startup interview (preset):** a panel at Lumen, a fictional fintech: Maya the CTO, Theo the CEO and Jordan the head of design.
 * **Custom group:** 2–3 characters you write (name, personality, voice) plus a setting.
@@ -41,7 +53,7 @@ Each group is a single ElevenLabs agent using **multi-voice**: the agent wraps e
 
 You fill in your real profile once (Profile in the top bar, `/account`); after that, signing in takes you straight to setup.
 
-Players sign up with email + password (Supabase Auth). Their real profile and every finished game (debrief, transcript, timeline) are saved to Supabase under row-level security, so each player only sees their own. The browser sends its Supabase access token to the API; `/api/session`, `/api/gap` and `/api/suggest` reject requests without a valid one, which also stops strangers from spending your API credits. `/history` lists past games, and debrief links keep working after a server restart.
+Players sign up with email + password (Supabase Auth). Their real profile and every finished game (debrief, transcript, timeline) are saved to Supabase under row-level security, so each player only sees their own. The browser sends its Supabase access token to the API; `/api/session`, `/api/gap` and `/api/suggest` reject requests without a valid one, which also stops strangers from spending your API credits. Past calls are listed on the Profile page, follow-ups appear in Messages, and results links keep working after a server restart.
 
 Tables (`profiles`, `games`) live in the Supabase project `sus`. In the Supabase dashboard: **Authentication → Sign In / Providers → Email**, turn off **Confirm email** for a frictionless demo (the built-in mailer is rate-limited), and add your Render URL under **Authentication → URL Configuration**.
 
@@ -112,9 +124,9 @@ Render serves HTTPS, which browsers require for microphone access. Sessions live
 
 ## Agentboxd follow-up email
 
-If `AGENTBOXD_API_KEY` is set, Sus sends exactly one email per scene, always to the player's sign-in email: an **in-character follow-up** from the character's own inbox (Dana, Priya, Maya, Theo and Jordan each have one; custom characters share one that is renamed per send), seconds after the scene ends. It's written by `GAP_MODEL` from `prompts/followup.v1.md` using the transcript, the goal and how you did: reached the goal → a concrete next step (interview slot, investor intro, an offer); survived without it → noncommittal; caught → a cool brush-off that hints at what didn't add up (from whoever caught you in a group); walked out → a reaction to that. It ends with a footer saying it comes from a fictional character in a practice game.
+If `AGENTBOXD_API_KEY` is set, Suspeeches sends exactly one email per scene, always to the player's sign-in email: an **in-character follow-up** from the character's own inbox (Sam, Dana, Maya, Theo and Jordan each have one; custom characters share one that is renamed per send), seconds after the scene ends. It's written by `GAP_MODEL` from `prompts/followup.v1.md` using the transcript, the goal and how you did: reached the goal → a concrete next step (interview slot, investor intro, an offer); survived without it → noncommittal; caught → a cool brush-off that hints at what didn't add up (from whoever caught you in a group); walked out → a reaction to that. It ends with a footer saying it comes from a fictional character in a practice game.
 
-The follow-up also appears on the debrief page, even with email off. Inboxes are created idempotently on `client_id` (`sus-npc-<name>`, `sus-npc-custom`). The sender sits behind the `HandlerChannel` interface in [src/lib/handler.ts](src/lib/handler.ts) and never blocks the game. Mind Agentboxd's send caps for new workspaces.
+The follow-up also appears in the in-app Messages tab and on the results page, even with email off. Inboxes are created idempotently on `client_id` (`sus-npc-<name>`, `sus-npc-custom`). The sender sits behind the `HandlerChannel` interface in [src/lib/handler.ts](src/lib/handler.ts) and never blocks the game. Mind Agentboxd's send caps for new workspaces.
 
 ## Layout
 
@@ -125,5 +137,5 @@ src/lib/              env, schemas (zod), llm (structured call + retry), judge, 
                       sessions (in-memory), scoring, timing, elevenlabs, handler, mock
 src/lib/client/       storage (localStorage), sound cues (WebAudio), api
 src/components/       Avatar, SuspicionBar, SceneRunner, Transcript, Timeline, ShareCard, ui
-src/app/              / (profile) · /setup · /scene · /debrief · /api/*
+src/app/              / (onboarding) · /login · /home · /messages · /account (profile) · /cover · /scenario · /scene · /debrief · /api/*
 ```

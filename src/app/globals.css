@@ -1,16 +1,37 @@
 @import "tailwindcss";
 
+/* Suspeeches palette: purple stage, lavender rooms, chunky "3D" buttons. */
 :root {
-  --bg: #0b0b12;
-  --panel: #14141f;
-  --panel-2: #1b1b29;
-  --line: #2a2a3c;
-  --ink: #f3f1ff;
-  --muted: #9a98b3;
-  --sus: #ff3b5c;
-  --warn: #ffb020;
-  --clean: #2ee6a6;
-  --brand: #8b5cf6;
+  --purple: #7b6cf6;
+  --purple-deep: #5f51e0;
+  --lav: #ece8ff;
+  --lav-2: #ddd7fb;
+  --lime: #d4f33a;
+  --green: #58cc02;
+  --green-dark: #46a302;
+  --green-soft: #dcf7c7;
+  --blue: #1cb0f6;
+  --blue-dark: #1899d6;
+  --blue-soft: #ddf4ff;
+  --yellow: #ffc800;
+  --yellow-dark: #e5a800;
+  --red: #ff4b4b;
+  --red-dark: #d93a3a;
+  --orange: #ff9600;
+  --orange-dark: #e07b00;
+  --pink: #ff86d0;
+
+  /* semantic tokens (also used by the detailed breakdown components) */
+  --bg: var(--lav);
+  --panel: #ffffff;
+  --panel-2: #f5f3ff;
+  --line: #e3defb;
+  --ink: #2b2a5c;
+  --muted: #6c6a9c;
+  --sus: var(--red);
+  --warn: var(--yellow);
+  --clean: var(--green);
+  --brand: var(--purple);
 }
 
 @theme inline {
@@ -24,26 +45,36 @@
   --color-warn: var(--warn);
   --color-clean: var(--clean);
   --color-brand: var(--brand);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-purple: var(--purple);
+  --color-purple-deep: var(--purple-deep);
+  --color-lav: var(--lav);
+  --color-lav-2: var(--lav-2);
+  --color-lime: var(--lime);
+  --color-green: var(--green);
+  --color-green-soft: var(--green-soft);
+  --color-blue: var(--blue);
+  --color-blue-soft: var(--blue-soft);
+  --color-yellow: var(--yellow);
+  --color-red: var(--red);
+  --color-orange: var(--orange);
+  --color-pink: var(--pink);
+  --font-sans: var(--font-nunito);
+  --font-display: var(--font-bricolage);
+  --font-mono: var(--font-nunito);
 }
 
 html {
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 body {
-  background:
-    radial-gradient(1200px 600px at 50% -10%, rgba(139, 92, 246, 0.16), transparent 60%),
-    radial-gradient(800px 400px at 100% 100%, rgba(255, 59, 92, 0.08), transparent 60%),
-    var(--bg);
-  background-attachment: fixed;
+  background: var(--bg);
   color: var(--ink);
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-nunito), ui-rounded, system-ui, sans-serif;
 }
 
 ::selection {
-  background: rgba(139, 92, 246, 0.5);
+  background: rgba(123, 108, 246, 0.3);
 }
 
 @keyframes sus-shake {
@@ -53,29 +84,35 @@ body {
   60% { transform: translateX(-3px); }
   80% { transform: translateX(2px); }
 }
-.animate-sus-shake {
-  animation: sus-shake 0.45s ease-in-out;
-}
+.animate-sus-shake { animation: sus-shake 0.45s ease-in-out; }
 
 @keyframes sus-pop {
   0% { transform: translateY(6px) scale(0.9); opacity: 0; }
-  60% { transform: translateY(-2px) scale(1.05); opacity: 1; }
+  60% { transform: translateY(-2px) scale(1.04); opacity: 1; }
   100% { transform: translateY(0) scale(1); opacity: 1; }
 }
-.animate-sus-pop {
-  animation: sus-pop 0.35s ease-out both;
-}
+.animate-sus-pop { animation: sus-pop 0.35s ease-out both; }
 
 @keyframes sus-float {
   0% { transform: translateY(0); opacity: 1; }
-  100% { transform: translateY(-28px); opacity: 0; }
+  100% { transform: translateY(-32px); opacity: 0; }
 }
-.animate-sus-float {
-  animation: sus-float 1.4s ease-out forwards;
+.animate-sus-float { animation: sus-float 1.4s ease-out forwards; }
+
+@keyframes sus-bob {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-4px) scale(1.015); }
 }
+.animate-sus-bob { animation: sus-bob 0.45s ease-in-out infinite; }
+
+@keyframes sus-twinkle {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.8); }
+}
+.animate-sus-twinkle { animation: sus-twinkle 2.4s ease-in-out infinite; }
 
 @media (prefers-reduced-motion: reduce) {
-  .animate-sus-shake, .animate-sus-pop, .animate-sus-float {
+  .animate-sus-shake, .animate-sus-pop, .animate-sus-float, .animate-sus-bob, .animate-sus-twinkle {
     animation: none;
   }
 }

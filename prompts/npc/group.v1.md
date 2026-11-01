@@ -1,7 +1,7 @@
 ---
 name: group
 version: 1
-agent_name: Sus - Custom group
+agent_name: Suspeeches - Custom group
 character: Custom group
 title: Player-defined group of 2-3 characters
 voice_id: JBFqnCBsd6RMkjVDRZzb

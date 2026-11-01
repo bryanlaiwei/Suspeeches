@@ -1,8 +1,8 @@
-# Render Blueprint for Sus. Deploy with: Render dashboard → New → Blueprint → pick this repo.
+# Render Blueprint for Suspeeches. Deploy with: Render dashboard → New → Blueprint → pick this repo.
 # Secrets marked `sync: false` are prompted for in the dashboard on first deploy.
 services:
   - type: web
-    name: sus
+    name: suspeeches
     runtime: node
     # Session state is in memory: keep a single instance. The free plan sleeps when idle
     # (live sessions are lost on spin-down); use starter for demos.

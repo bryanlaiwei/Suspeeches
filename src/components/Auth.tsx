@@ -1,7 +1,6 @@
 "use client";
 
 import type { User } from "@supabase/supabase-js";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { authEnabled, supabase } from "@/lib/client/supabase";
@@ -29,36 +28,4 @@ export function RequireAuth({ children }: { children: ReactNode }) {
   }, [blocked, router]);
   if (authEnabled && (loading || !user)) return null;
   return <>{children}</>;
-}
-
-export function UserMenu() {
-  const { user } = useAuth();
-  const router = useRouter();
-  if (!authEnabled || !user) return null;
-  return (
-    <div className="flex items-center gap-3 text-xs text-muted">
-      <Link href="/setup" className="hover:text-ink">
-        Play
-      </Link>
-      <Link href="/history" className="hover:text-ink">
-        History
-      </Link>
-      <Link href="/account" className="hover:text-ink">
-        Profile
-      </Link>
-      <span className="hidden max-w-[180px] truncate sm:inline" title={user.email ?? ""}>
-        {user.email}
-      </span>
-      <button
-        type="button"
-        className="rounded-lg border border-line px-2.5 py-1 hover:bg-panel-2 hover:text-ink"
-        onClick={async () => {
-          await supabase()?.auth.signOut();
-          router.replace("/login");
-        }}
-      >
-        Sign out
-      </button>
-    </div>
-  );
 }

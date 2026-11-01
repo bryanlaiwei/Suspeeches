@@ -48,12 +48,12 @@ class AgentboxdHandler implements HandlerChannel {
     const f = s.followup;
     if (!f) return;
     const who = castFor(s.setup).find((c) => c.name === f.sender);
-    const inbox = await this.characterInbox(f.sender, who?.title ?? "Sus character");
+    const inbox = await this.characterInbox(f.sender, who?.title ?? "Suspeeches character");
     const text = [
       f.body,
       "",
       "—",
-      `Sent from Sus, a practice game. ${f.sender} is a fictional character.`,
+      `Sent from Suspeeches, a practice game. ${f.sender} is a fictional character.`,
     ].join("\n");
     await this.client.messages.send(inbox.id, { to: s.profile.email, subject: f.subject, text }, { idempotencyKey: `followup-${s.id}` });
     f.sentTo = s.profile.email;

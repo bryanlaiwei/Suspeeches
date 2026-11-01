@@ -8,7 +8,7 @@ import type { Debrief } from "./types";
 /**
  * Start writing the debrief as soon as the scene ends (idempotent), then the character's
  * follow-up email, which is sent the moment it's ready, whether or not anyone has the debrief
- * page open. The follow-up is the only email Sus sends.
+ * page open. The follow-up is the only email Suspeeches sends.
  */
 export function startDebrief(s: Session): Promise<Debrief> {
   s.debriefPromise ??= buildDebrief(s).then(

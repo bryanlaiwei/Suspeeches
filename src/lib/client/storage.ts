@@ -4,6 +4,7 @@ import type { GapResult, Profile, Setup } from "../schemas";
 import type { CreateSessionResponse } from "../types";
 
 const PROFILE_KEY = "sus:profile:v1";
+const READ_KEY = "sus:read-messages:v1";
 const SETUP_KEY = "sus:setup-draft:v1";
 const SCENE_KEY = "sus:scene:v1";
 
@@ -30,7 +31,23 @@ const session = () => (typeof window === "undefined" ? undefined : window.sessio
 export const loadProfile = () => read<Profile>(local(), PROFILE_KEY);
 export const saveProfile = (p: Profile) => write(local(), PROFILE_KEY, p);
 
-export type SetupDraft = Partial<Setup> & { gap?: GapResult | null; gapFor?: string };
+/** The fake persona built on the "Build your cover" screen; claims are derived from it. */
+export interface Cover {
+  alias: string;
+  title: string;
+  years: string;
+  projects: string[];
+  skills: string[];
+  goal: "interview" | "referral" | "vibe";
+}
+
+export type SetupDraft = Partial<Setup> & {
+  gap?: GapResult | null;
+  gapFor?: string;
+  cover?: Cover;
+  /** A call is waiting on Home / Messages (set on "Meet X", cleared when the call is accepted). */
+  callReady?: boolean;
+};
 export const loadSetupDraft = () => read<SetupDraft>(local(), SETUP_KEY);
 export const saveSetupDraft = (d: SetupDraft) => write(local(), SETUP_KEY, d);
 
@@ -43,4 +60,12 @@ export const clearScene = () => {
   } catch {
     /* ignore */
   }
+};
+
+/** Messages the player has opened (ids), for unread badges. */
+export const loadReadIds = () => new Set(read<string[]>(local(), READ_KEY) ?? []);
+export const markRead = (id: string) => {
+  const ids = loadReadIds();
+  ids.add(id);
+  write(local(), READ_KEY, [...ids]);
 };

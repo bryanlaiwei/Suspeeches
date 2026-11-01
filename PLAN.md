@@ -1,4 +1,4 @@
-# Sus — build plan
+# Suspeeches — build plan
 
 > "Don't give yourself away." A 1-on-1 voice game: you fake a cover story to an AI character while a hidden judge watches for tells.
 

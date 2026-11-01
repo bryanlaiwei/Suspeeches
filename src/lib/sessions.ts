@@ -14,7 +14,7 @@ import {
   silencePenalty,
   SILENCE_FIRST_SEC,
   SILENCE_REPEAT_SEC,
-  START_SUSPICION,
+  CALL_MOODS,
   type Mood,
   type ScoreHistory,
 } from "./scoring";
@@ -84,7 +84,7 @@ export function createSession(profile: Profile, setup: Setup, gap: GapResult, ap
     profile,
     setup,
     gap,
-    suspicion: START_SUSPICION,
+    suspicion: CALL_MOODS[setup.mood].start,
     status: "live",
     endReason: null,
     startedAt: now,
@@ -99,7 +99,7 @@ export function createSession(profile: Profile, setup: Setup, gap: GapResult, ap
     appUrl,
     owner,
     queue: Promise.resolve(),
-    mood: moodFor(START_SUSPICION),
+    mood: moodFor(CALL_MOODS[setup.mood].start),
     ...groupState(setup),
     caughtBy: null,
     silence: null,
@@ -155,12 +155,12 @@ export async function addEvent(
     if (s.suspicionBy) {
       // Group: each listener has their own bar, scored on what they can actually judge.
       perCharacter = result.listeners.map((l) => {
-        const applied = appliedDelta(l.delta, s.gap.gapScore, scoreHistory(s, l.name));
+        const applied = appliedDelta(l.delta, s.gap.gapScore, scoreHistory(s, l.name), CALL_MOODS[s.setup.mood].doubt);
         return { name: l.name, judgeDelta: l.delta, reason: l.reason, adjustments: applied.notes, ...applyTo(s, l.name, applied.delta) };
       });
       delta = biggestMove(perCharacter);
     } else {
-      ({ delta, notes } = appliedDelta(result.delta, s.gap.gapScore, scoreHistory(s)));
+      ({ delta, notes } = appliedDelta(result.delta, s.gap.gapScore, scoreHistory(s), CALL_MOODS[s.setup.mood].doubt));
       s.suspicion = applyDelta(s.suspicion, delta);
     }
     const event: SuspicionEvent = {
@@ -238,15 +238,15 @@ function groupState(setup: Setup): Pick<Session, "suspicionBy" | "moodBy"> {
   const cast = castFor(setup);
   if (cast.length < 2) return { suspicionBy: null, moodBy: null };
   return {
-    suspicionBy: Object.fromEntries(cast.map((c) => [c.name, START_SUSPICION])),
-    moodBy: Object.fromEntries(cast.map((c) => [c.name, moodFor(START_SUSPICION)])),
+    suspicionBy: Object.fromEntries(cast.map((c) => [c.name, CALL_MOODS[setup.mood].start])),
+    moodBy: Object.fromEntries(cast.map((c) => [c.name, moodFor(CALL_MOODS[setup.mood].start)])),
   };
 }
 
 /** Apply a change to one character's bar; the overall bar is the most suspicious character. */
 function applyTo(s: Session, name: string, delta: number): { delta: number; suspicion: number } {
   const by = s.suspicionBy!;
-  by[name] = applyDelta(by[name] ?? START_SUSPICION, delta);
+  by[name] = applyDelta(by[name] ?? CALL_MOODS[s.setup.mood].start, delta);
   s.suspicion = Math.max(...Object.values(by));
   return { delta, suspicion: by[name] };
 }
@@ -308,6 +308,7 @@ export function toPublic(s: Session): PublicSessionState {
     status: s.status,
     endReason: s.endReason,
     suspicion: s.suspicion,
+    startSuspicion: CALL_MOODS[s.setup.mood].start,
     suspicionBy: s.suspicionBy,
     caughtBy: s.caughtBy,
     events: s.events,

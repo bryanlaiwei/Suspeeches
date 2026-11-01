@@ -1,7 +1,7 @@
 ---
 name: custom
 version: 1
-agent_name: Sus - Custom character
+agent_name: Suspeeches - Custom character
 character: Custom character
 title: Player-defined character
 voice_id: JBFqnCBsd6RMkjVDRZzb

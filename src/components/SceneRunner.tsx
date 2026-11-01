@@ -2,21 +2,17 @@
 
 import { useConversation } from "@elevenlabs/react";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { fmtTime } from "@/lib/context";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/client/api";
 import { playCaught, playRelief, playSpike, playSurvived, unlockAudio } from "@/lib/client/sound";
-import type { SetupDraft } from "@/lib/client/storage";
-import { castFor, CUSTOM_PRESET, presetFor } from "@/lib/presets";
+import { saveSetupDraft, type SetupDraft } from "@/lib/client/storage";
+import { castFor } from "@/lib/presets";
 import { parseSegments } from "@/lib/voiceTags";
 import { SetupSchema, type Profile, type Setup } from "@/lib/schemas";
-import { moodFor, SILENCE_FIRST_SEC, SILENCE_REPEAT_SEC, SPIKE_DELTA, START_SUSPICION } from "@/lib/scoring";
-import type { ClaimState, EndReason, PublicSessionState, SuspicionEvent, VoiceConnection } from "@/lib/types";
-import { Avatar, type AvatarPalette } from "./Avatar";
-import { Stage } from "./Stage";
-import { EventDetail, SuspicionBar } from "./SuspicionBar";
-import { Transcript, type LiveLine } from "./Transcript";
-import { Button, Card, cx, FictionNote, Input, Shell } from "./ui";
+import { CALL_MOODS, SILENCE_FIRST_SEC, SILENCE_REPEAT_SEC, SPIKE_DELTA } from "@/lib/scoring";
+import type { EndReason, PublicSessionState, SuspicionEvent, VoiceConnection } from "@/lib/types";
+import { CallInvite, CallStage, EndOverlay, MockInput } from "./CallScreen";
+import type { LiveLine } from "./Transcript";
 import { useAnimatedNumber } from "./useAnimatedNumber";
 
 type Phase = "briefing" | "connecting" | "live" | "ended" | "error";
@@ -27,10 +23,8 @@ const INPUT_SPEECH = 0.08;
 export function SceneRunner({ profile, draft }: { profile: Profile; draft: SetupDraft }) {
   const router = useRouter();
   const setup = useMemo(() => SetupSchema.parse(draft) as Setup, [draft]);
-  const preset = setup.scenarioId === "custom" ? CUSTOM_PRESET : presetFor(setup.scenarioId);
   const cast = useMemo(() => castFor(setup), [setup]);
   const isGroup = cast.length > 1;
-  const npcName = isGroup ? "the group" : cast[0].name;
   const [activeSpeaker, setActiveSpeaker] = useState<string | null>(null);
 
   const [phase, setPhase] = useState<Phase>("briefing");
@@ -39,7 +33,7 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
   const [voice, setVoice] = useState<VoiceConnection | null>(null);
   const [lines, setLines] = useState<LiveLine[]>([]);
   const [remaining, setRemaining] = useState(setup.timeLimitSec);
-  const [selected, setSelected] = useState<number | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
   const [lastDelta, setLastDelta] = useState<{ delta: number; key: number } | null>(null);
   const [shaking, setShaking] = useState(false);
   const [ending, setEnding] = useState<EndReason | null>(null);
@@ -48,7 +42,7 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
   const [silentFor, setSilentFor] = useState(0);
   const [busted, setBusted] = useState(false);
 
-  const suspicion = useAnimatedNumber(state?.suspicion ?? START_SUSPICION, 5);
+  const suspicion = useAnimatedNumber(state?.suspicion ?? CALL_MOODS[setup.mood].start, 5);
 
   // Mutable engine state lives in refs so SDK callbacks never see stale values.
   const sessionId = useRef<string | null>(null);
@@ -289,6 +283,13 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
 
   function react(e: SuspicionEvent) {
     setLastDelta({ delta: e.delta, key: e.turnIndex });
+    // A quick hint of what they noticed (the full reasons are in the results breakdown).
+    const reason = e.reasons[0];
+    if (reason && Math.abs(e.delta) >= 4) {
+      const text = `${e.delta > 0 ? "🤨" : "😌"} ${reason}`;
+      setToast(text);
+      setTimeout(() => setToast((t) => (t === text ? null : t)), 4500);
+    }
     if (e.kind === "silence") {
       playSpike(0.35);
       setShaking(true);
@@ -339,6 +340,7 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
     unlockAudio();
     setError(null);
     setPhase("connecting");
+    saveSetupDraft({ ...draft, callReady: false });
     try {
       const res = await api.createSession(profile, setup, draft.gap);
       sessionId.current = res.state.id;
@@ -445,331 +447,67 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, voice]);
 
-  const getLevel = useCallback((name: string) => {
-    // Only whoever is talking moves their mouth (1-on-1: the single NPC).
-    if (isGroup && speech.current.active !== name) return 0;
-    if (voiceRef.current?.mode === "elevenlabs") {
-      try {
-        return conversation.getOutputVolume();
-      } catch {
-        return 0;
-      }
-    }
-    // Mock: fake a talking envelope while speech synthesis runs.
-    if (!mock.current.speaking) return 0;
-    const t = performance.now() / 1000;
-    return 0.25 + 0.2 * Math.abs(Math.sin(t * 11)) + 0.1 * Math.sin(t * 23);
-  }, [conversation, isGroup]);
 
   /* ---------- render ---------- */
 
-  const selectedEvent = state?.events.find((e) => e.turnIndex === selected) ?? null;
-  const npcTalking = voice?.mode === "elevenlabs" ? conversation.isSpeaking : false;
-  const mood = moodFor(state?.suspicion ?? START_SUSPICION);
+  const npcTalking = voice?.mode === "elevenlabs" ? conversation.isSpeaking : !!activeSpeaker;
   const silenceWarning = phase === "live" && !busted && silentFor >= SILENCE_FIRST_SEC - 3;
-  const claims: ClaimState[] = state?.claims ?? setup.claims.map((claim) => ({ claim, status: "untested" }));
+
+  // Only the latest line from each side is shown (no conversation history on screen).
+  const lastUser = [...lines].reverse().find((l) => l.role === "user") ?? null;
+  const lastAgentAt = [...lines].reverse().find((l) => l.role === "agent")?.tSec;
+  const agentBurst = lines.filter((l) => l.role === "agent" && l.tSec === lastAgentAt);
+  const npcShown = agentBurst.find((l) => l.speaker && l.speaker === activeSpeaker) ?? agentBurst.at(-1) ?? null;
 
   if (phase === "briefing" || (phase === "error" && !hasSession)) {
-    return (
-      <Shell step={2}>
-        <Briefing
-          setup={setup}
-          npcName={isGroup ? preset.character : npcName}
-          cast={cast}
-          gap={draft.gap!}
-          onStart={start}
-          onBack={() => router.push("/setup")}
-          error={error}
-        />
-      </Shell>
-    );
+    return <CallInvite setup={setup} cast={cast} busy={false} error={error} onAccept={start} onDecline={() => router.push("/home")} />;
   }
 
+  const status: { text: string; tone: "warn" | "red" | "soft" } | null =
+    phase === "connecting"
+      ? { text: `Calling ${isGroup ? "the panel" : cast[0].name}…`, tone: "soft" }
+      : busted && phase === "live"
+        ? { text: `Busted. ${state?.caughtBy ?? cast[0].name} is wrapping up…`, tone: "red" }
+        : silenceWarning
+          ? {
+              text: `${isGroup ? "They're" : `${cast[0].name} is`} waiting… ${Math.max(0, Math.ceil(nextSilenceAt(silentFor) - silentFor))}s`,
+              tone: "warn",
+            }
+          : error && phase !== "ended"
+            ? { text: error, tone: "red" }
+            : null;
+
   return (
-    <Shell step={2}>
-      <div className="grid flex-1 gap-6 lg:grid-cols-[1.2fr_1fr]">
-        <div className="relative flex flex-col items-center">
-          <div className="mb-4 flex w-full items-center justify-between">
-            <ClaimsHud claims={claims} />
-            <div
-              className={cx(
-                "rounded-xl border px-4 py-2 font-mono text-2xl font-black tabular-nums",
-                remaining < 30 ? "border-sus/50 text-sus" : "border-line",
-              )}
-              aria-label="Time remaining"
-            >
-              {fmtTime(remaining)}
-            </div>
-          </div>
-
-          {isGroup ? (
-            <p className="text-center text-xs text-muted">
-              Everyone has their own suspicion bar. <span className="text-sus">If any one of them hits 100, you&apos;re caught.</span>
-            </p>
-          ) : (
-            <SuspicionBar
-              value={suspicion}
-              events={state?.events ?? []}
-              selected={selected}
-              onSelect={setSelected}
-              lastDelta={lastDelta}
-              shaking={shaking}
-            />
-          )}
-          {selectedEvent && (
-            <div className="absolute top-36 z-20 w-full max-w-md">
-              <EventDetail event={selectedEvent} onClose={() => setSelected(null)} />
-            </div>
-          )}
-          <Stage
-            cast={cast}
-            active={activeSpeaker}
-            suspicion={suspicion}
-            suspicionBy={state?.suspicionBy ?? null}
-            lastEvent={state?.events.at(-1) ?? null}
-            getLevel={getLevel}
-            shaking={shaking}
-          />
-          <div className="mt-1 text-center">
-            {phase === "live" && !isGroup && (
-              <div className="mt-1 text-xs text-muted">
-                Mood: <span className={cx("font-semibold", MOOD_COLOR[mood])}>{mood}</span>
-              </div>
-            )}
-          </div>
-
-          <div className="mt-5 flex items-center gap-3">
-            {phase === "connecting" && <StatusPill tone="muted">Connecting to {npcName}…</StatusPill>}
-            {busted && phase === "live" && <StatusPill tone="sus">Busted. {state?.caughtBy ?? npcName} is ending the call…</StatusPill>}
-            {silenceWarning && (
-              <StatusPill tone="warn">
-                {npcName} is waiting… {Math.max(0, Math.ceil(nextSilenceAt(silentFor) - silentFor))}s
-              </StatusPill>
-            )}
-            {phase === "live" && voice?.mode === "elevenlabs" && (
-              <>
-                {!silenceWarning && !busted && (
-                  <StatusPill tone={npcTalking ? "brand" : userTalking ? "clean" : "muted"}>
-                    {npcTalking ? `${activeSpeaker ?? cast[0].name} is talking` : userTalking ? "You're talking" : "Your turn. Speak up."}
-                  </StatusPill>
-                )}
-                <Button variant="ghost" onClick={() => conversation.setMuted(!conversation.isMuted)}>
-                  {conversation.isMuted ? "🎙️ Unmute" : "🔇 Mute mic"}
-                </Button>
-              </>
-            )}
-            {phase === "live" && (
-              <Button variant="danger" onClick={() => void finish("left")}>
-                Leave scene
-              </Button>
-            )}
-          </div>
-          {error && phase !== "ended" && <p className="mt-3 text-sm text-sus">{error}</p>}
-          {voice?.mode === "mock" && phase === "live" && <MockInput onSend={(t) => onUserLine(t)} onTyping={markUserSpeaking} />}
-        </div>
-
-        <Card className="flex max-h-[78vh] min-h-[420px] flex-col">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="font-bold">Live transcript</h2>
-            <span className="text-xs text-muted">Tap a score to see why</span>
-          </div>
-          <Transcript lines={lines} npcName={npcName} onSelectTurn={setSelected} className="flex-1" />
-        </Card>
-      </div>
-
-      {phase === "ended" && ending && <EndOverlay reason={ending} npcName={state?.caughtBy ?? npcName} />}
-    </Shell>
+    <>
+      <CallStage
+        cast={cast}
+        suspicion={suspicion}
+        suspicionBy={state?.suspicionBy ?? null}
+        active={npcTalking ? (isGroup ? activeSpeaker : cast[0].name) : null}
+        npcLine={npcShown?.text ?? null}
+        npcSpeaker={npcShown?.speaker ?? null}
+        userLine={lastUser?.text ?? null}
+        userTalking={userTalking && !npcTalking}
+        remaining={remaining}
+        pop={lastDelta}
+        shaking={shaking}
+        status={status}
+        toast={toast}
+        muted={voice?.mode === "elevenlabs" ? conversation.isMuted : null}
+        onMute={() => conversation.setMuted(!conversation.isMuted)}
+        onHangUp={() => void finish("left")}
+        setup={setup}
+        mockInput={
+          voice?.mode === "mock" && phase === "live" ? <MockInput onSend={(t) => onUserLine(t)} onTyping={markUserSpeaking} /> : null
+        }
+      />
+      {phase === "ended" && ending && <EndOverlay reason={ending} npcName={state?.caughtBy ?? cast[0].name} />}
+    </>
   );
 }
-
-/* ---------- pieces ---------- */
-
-function Briefing({
-  setup,
-  npcName,
-  cast,
-  gap,
-  onStart,
-  onBack,
-  error,
-}: {
-  setup: Setup;
-  npcName: string;
-  cast: AvatarPalette[];
-  gap: NonNullable<SetupDraft["gap"]>;
-  onStart: () => void;
-  onBack: () => void;
-  error: string | null;
-}) {
-  return (
-    <div className="mx-auto grid w-full max-w-4xl items-center gap-8 pt-6 md:grid-cols-[1fr_1.2fr]">
-      <div className={cx("mx-auto flex justify-center", cast.length > 1 ? "-space-x-6" : "")}>
-        {cast.map((c, i) => (
-          <Avatar key={i} palette={c} suspicion={START_SUSPICION} getLevel={() => 0} className={cast.length > 1 ? "w-36" : "w-64"} />
-        ))}
-      </div>
-      <Card>
-        <p className="text-xs font-bold tracking-[0.25em] text-sus">BRIEFING</p>
-        <h1 className="mt-1 text-3xl font-black">You&apos;re about to meet {npcName}.</h1>
-        <p className="mt-2 text-sm text-muted">
-          You are <strong className="text-ink">{setup.alias}</strong>. {npcName} only knows this:
-        </p>
-        <ul className="mt-3 space-y-1.5 text-sm">
-          {setup.claims.map((c) => (
-            <li key={c} className="rounded-lg bg-bg/60 px-3 py-2">
-              {c}
-            </li>
-          ))}
-        </ul>
-        <dl className="mt-4 grid grid-cols-3 gap-3 text-center text-xs text-muted">
-          <div className="rounded-lg bg-bg/60 p-2">
-            <dt>Goal</dt>
-            <dd className="mt-1 text-[11px] text-ink">{setup.goal}</dd>
-          </div>
-          <div className="rounded-lg bg-bg/60 p-2">
-            <dt>Clock</dt>
-            <dd className="mt-1 font-mono text-lg font-bold text-ink">{fmtTime(setup.timeLimitSec)}</dd>
-          </div>
-          <div className="rounded-lg bg-bg/60 p-2">
-            <dt>Larp gap</dt>
-            <dd className="mt-1 font-mono text-lg font-bold text-ink">
-              {gap.gapScore} <span className="text-xs text-brand">×{gap.multiplier.toFixed(1)}</span>
-            </dd>
-          </div>
-        </dl>
-        <p className="mt-4 text-xs text-muted">
-          Use headphones so {npcName} doesn&apos;t hear themself. Suspicion hits 100 and you&apos;re caught.
-        </p>
-        {error && <p className="mt-3 rounded-lg bg-sus/10 px-3 py-2 text-sm text-sus">{error}</p>}
-        <div className="mt-5 flex gap-3">
-          <Button variant="ghost" onClick={onBack}>
-            ← Edit cover
-          </Button>
-          <Button className="flex-1 py-3 text-base" onClick={onStart}>
-            🎙️ Start talking
-          </Button>
-        </div>
-        <FictionNote className="mt-4" />
-      </Card>
-    </div>
-  );
-}
-
-const CLAIM_ICON: Record<ClaimState["status"], { icon: string; color: string; label: string }> = {
-  untested: { icon: "○", color: "var(--muted)", label: "untested" },
-  held: { icon: "●", color: "var(--clean)", label: "holding" },
-  shaky: { icon: "◐", color: "var(--warn)", label: "shaky" },
-  contradicted: { icon: "✕", color: "var(--sus)", label: "blown" },
-};
-
-function ClaimsHud({ claims }: { claims: ClaimState[] }) {
-  return (
-    <ul className="flex max-w-[70%] flex-wrap gap-1.5">
-      {claims.map((c) => {
-        const s = CLAIM_ICON[c.status];
-        return (
-          <li
-            key={c.claim}
-            title={`${c.claim}: ${s.label}`}
-            className="flex max-w-[220px] items-center gap-1.5 truncate rounded-full border border-line bg-panel/80 px-2.5 py-1 text-[11px]"
-          >
-            <span style={{ color: s.color }}>{s.icon}</span>
-            <span className="truncate text-ink/80">{c.claim}</span>
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
-
-const MOOD_COLOR = { warm: "text-clean", curious: "text-ink", skeptical: "text-warn", cold: "text-sus" } as const;
 
 /** Seconds of silence at which the next penalty lands. */
 function nextSilenceAt(quiet: number): number {
   if (quiet < SILENCE_FIRST_SEC) return SILENCE_FIRST_SEC;
   return SILENCE_FIRST_SEC + Math.ceil((quiet - SILENCE_FIRST_SEC + 0.001) / SILENCE_REPEAT_SEC) * SILENCE_REPEAT_SEC;
-}
-
-function StatusPill({ children, tone }: { children: React.ReactNode; tone: "brand" | "clean" | "muted" | "warn" | "sus" }) {
-  return (
-    <span
-      className={cx(
-        "flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium",
-        tone === "brand" && "border-brand/50 bg-brand/15",
-        tone === "clean" && "border-clean/50 bg-clean/10",
-        tone === "muted" && "border-line text-muted",
-        tone === "warn" && "animate-pulse border-warn/60 bg-warn/15 text-warn",
-        tone === "sus" && "animate-pulse border-sus/60 bg-sus/15 text-sus",
-      )}
-    >
-      <span
-        className={cx(
-          "h-2 w-2 rounded-full",
-          tone === "brand" && "animate-pulse bg-brand",
-          tone === "clean" && "animate-pulse bg-clean",
-          tone === "muted" && "bg-muted",
-          tone === "warn" && "bg-warn",
-          tone === "sus" && "bg-sus",
-        )}
-      />
-      {children}
-    </span>
-  );
-}
-
-function MockInput({ onSend, onTyping }: { onSend: (text: string) => void; onTyping: () => void }) {
-  const [text, setText] = useState("");
-  return (
-    <form
-      className="mt-6 w-full max-w-md rounded-xl border border-dashed border-warn/50 p-3"
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (text.trim()) onSend(text.trim());
-        setText("");
-      }}
-    >
-      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-warn">
-        MOCK_MODE dev input (stands in for your microphone)
-      </p>
-      <div className="flex gap-2">
-        <Input
-          value={text}
-          onChange={(e) => {
-            setText(e.target.value);
-            onTyping();
-          }}
-          placeholder="Type what you'd say…"
-        />
-        <Button type="submit" variant="ghost">
-          Say
-        </Button>
-      </div>
-    </form>
-  );
-}
-
-function EndOverlay({ reason, npcName }: { reason: EndReason; npcName: string }) {
-  const caught = reason === "caught";
-  const title = caught ? "CAUGHT" : reason === "left" ? "WALKED OUT" : reason === "error" ? "CONNECTION LOST" : "SURVIVED";
-  const sub = caught
-    ? `${npcName} saw right through you.`
-    : reason === "npc_ended"
-      ? `${npcName} wrapped it up. You made it out.`
-      : reason === "timeout"
-        ? "Time's up. Your cover held."
-        : "Writing up your debrief…";
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg/80 backdrop-blur-sm">
-      <div className="animate-sus-pop text-center">
-        <div
-          className="text-7xl font-black tracking-tight sm:text-8xl"
-          style={{ color: caught ? "var(--sus)" : "var(--clean)", textShadow: `0 0 40px ${caught ? "#ff3b5c88" : "#2ee6a688"}` }}
-        >
-          {title}
-        </div>
-        <p className="mt-3 text-lg text-ink/80">{sub}</p>
-        <p className="mt-6 text-sm text-muted">Preparing your debrief…</p>
-      </div>
-    </div>
-  );
 }

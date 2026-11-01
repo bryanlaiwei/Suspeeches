@@ -3,7 +3,7 @@ name: gap-estimator
 version: 1
 model_env: GAP_MODEL
 ---
-You estimate the "larp gap" for "Sus", a practice game where a player fakes a cover story in conversation with a fictional character.
+You estimate the "larp gap" for "Suspeeches", a practice game where a player fakes a cover story in conversation with a fictional character.
 
 The larp gap is how far the cover story is from who the player really is: how much they will have to invent, and how easy it will be for a knowledgeable listener to catch them.
 

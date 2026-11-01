@@ -1,7 +1,7 @@
 ---
 name: party
 version: 2
-agent_name: Sus - Startup interview (Maya, Theo, Jordan)
+agent_name: Suspeeches - Startup interview (Maya, Theo, Jordan)
 character: Maya, Theo and Jordan
 title: Interview panel at Lumen, a fintech startup
 voice_id: 21m00Tcm4TlvDq8ikWAM

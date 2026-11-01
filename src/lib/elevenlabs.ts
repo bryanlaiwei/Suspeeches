@@ -3,6 +3,7 @@ import { env, voiceMock } from "./env";
 import { mockGroupLines, mockNpcLines } from "./mock";
 import { castFor, voiceLabel } from "./presets";
 import type { Setup } from "./schemas";
+import { CALL_MOODS } from "./scoring";
 import type { VoiceConnection } from "./types";
 
 const API = "https://api.elevenlabs.io";
@@ -38,6 +39,7 @@ export async function voiceConnectionFor(setup: Setup): Promise<VoiceConnection>
     cover_story: setup.claims.map((c) => `- ${c}`).join("\n"),
     scene_goal: setup.goal,
     time_limit_minutes: String(Math.max(1, Math.round(setup.timeLimitSec / 60))),
+    starting_mood: CALL_MOODS[setup.mood].note,
   };
 
   if (setup.scenarioId === "group" && setup.group) {

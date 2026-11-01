@@ -4,7 +4,7 @@ import { structuredCall } from "./llm";
 import { mockDebrief } from "./mock";
 import { render } from "./prompts";
 import { DebriefRawSchema, type DebriefRaw } from "./schemas";
-import { finalScore } from "./scoring";
+import { CALL_MOODS, finalScore } from "./scoring";
 import type { Session } from "./sessions";
 import type { Debrief } from "./types";
 
@@ -85,13 +85,14 @@ export async function buildDebrief(s: Session): Promise<Debrief> {
     .filter((x): x is NonNullable<typeof x> => x !== null);
 
   const claimNotes = new Map(raw.claims.map((c) => [c.claim.trim().toLowerCase(), c]));
-  const { score, breakdown } = finalScore({
+  const { score, larpScore, breakdown } = finalScore({
     endReason,
     caught: outcome === "caught",
     durationSec,
     timeLimitSec: s.setup.timeLimitSec,
     gapMultiplier: s.gap.multiplier,
     averageSuspicion,
+    moodMultiplier: CALL_MOODS[s.setup.mood].scoreMultiplier,
   });
 
   return {
@@ -111,6 +112,7 @@ export async function buildDebrief(s: Session): Promise<Debrief> {
     larpGap: s.gap.gapScore,
     gapMultiplier: s.gap.multiplier,
     score,
+    larpScore,
     scoreBreakdown: breakdown,
     durationSec,
   };
