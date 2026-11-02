@@ -2,14 +2,17 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { RequireAuth, useAuth } from "@/components/Auth";
+import { RequireAuth } from "@/components/Auth";
 import { useEffect, useMemo, useState } from "react";
-import { Avatar } from "@/components/Avatar";
-import { Btn, Button, Card, Chip, cx, ERROR_NOTE, FIELD, PICK_BASE, PICK_OFF, PICK_ON, ROW, FictionNote, Input, Label, Shell, Textarea } from "@/components/ui";
+import { CoverStoryCard, MAX_CLAIMS } from "@/components/setup/CoverStoryCard";
+import { GapCard } from "@/components/setup/GapCard";
+import { emptyGroup, type GroupDraft } from "@/components/setup/GroupBuilder";
+import { ALL_SCENES, ScenePicker, type CustomDraft } from "@/components/setup/ScenePicker";
+import { Button, Card, Chip, ERROR_NOTE, FictionNote, Input, Label, Shell } from "@/components/ui";
 import { api } from "@/lib/client/api";
 import { fetchProfile } from "@/lib/client/profileStore";
 import { gapKeyFor, loadSetupDraft, saveSetupDraft, type SetupDraft } from "@/lib/client/storage";
-import { castFor, CUSTOM_PRESET, GROUP_PRESET, PARTY_CAST, PARTY_PRESET, PRESETS, presetFor, VOICES } from "@/lib/presets";
+import { isGroupScenario, PRESETS, presetFor, VOICES } from "@/lib/presets";
 import { ScenarioIdSchema, SetupSchema, type GapResult, type Profile, type ScenarioId } from "@/lib/schemas";
 
 const TIME_OPTIONS = [150, 300, 600];
@@ -26,23 +29,17 @@ function SetupPageInner() {
   const router = useRouter();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [scenarioId, setScenarioId] = useState<ScenarioId>("recruiter");
-  const [custom, setCustom] = useState({ name: "", personality: "", setting: "", voiceId: VOICES[0].id });
-  const [group, setGroup] = useState<{ setting: string; characters: GroupChar[] }>({
-    setting: "",
-    characters: [
-      { name: "", personality: "", expertise: "", voiceId: VOICES[0].id },
-      { name: "", personality: "", expertise: "", voiceId: VOICES[1].id },
-    ],
-  });
+  const [custom, setCustom] = useState<CustomDraft>({ name: "", personality: "", setting: "", voiceId: VOICES[0].id });
+  const [group, setGroup] = useState<GroupDraft>(emptyGroup);
   const [alias, setAlias] = useState("");
   const [claims, setClaims] = useState<string[]>([]);
-  const [draftClaim, setDraftClaim] = useState("");
   const [goal, setGoal] = useState(PRESETS[0].defaultGoal);
   const [timeLimitSec, setTimeLimitSec] = useState(300);
-  const { user } = useAuth();
   const [suggestions, setSuggestions] = useState<{ claim: string; why: string }[]>([]);
   const [suggesting, setSuggesting] = useState(false);
   const [gap, setGap] = useState<GapResult | null>(null);
+  /** The server's signature over `gap`, handed back when the scene starts. */
+  const [gapToken, setGapToken] = useState("");
   const [gapFor, setGapFor] = useState("");
   const [gapLoading, setGapLoading] = useState(false);
   /** Cover story (alias + claims) as last saved, to show unsaved changes. */
@@ -67,6 +64,7 @@ function SetupPageInner() {
       if (d?.timeLimitSec && TIME_OPTIONS.includes(d.timeLimitSec)) setTimeLimitSec(d.timeLimitSec);
       if (d?.gap && d.gapFor) {
         setGap(d.gap);
+        setGapToken(d.gapToken ?? "");
         setGapFor(d.gapFor);
       }
       if (d?.claims?.length) setSavedCover(coverKeyFor(d.alias || p.name, d.claims));
@@ -74,8 +72,7 @@ function SetupPageInner() {
   }, [router]);
 
   const preset = presetFor(scenarioId);
-  const emailTo = user?.email ?? "";
-  const isGroup = scenarioId === "party" || scenarioId === "group";
+  const isGroup = isGroupScenario(scenarioId);
   const audience =
     scenarioId === "custom"
       ? custom.name || "the character"
@@ -83,7 +80,7 @@ function SetupPageInner() {
         ? group.characters.map((c) => c.name).filter(Boolean).join(", ") || "your group"
         : preset.character;
   const gapKey = useMemo(() => (profile ? gapKeyFor(profile, alias, claims) : ""), [profile, alias, claims]);
-  const gapFresh = gap && gapFor === gapKey;
+  const gapFresh = !!gap && gapFor === gapKey;
   const coverKey = coverKeyFor(alias, claims);
   const coverSaved = !!claims.length && savedCover === coverKey;
 
@@ -97,7 +94,7 @@ function SetupPageInner() {
 
   function addClaim(text: string) {
     const t = text.trim();
-    if (!t || claims.includes(t) || claims.length >= 8) return;
+    if (!t || claims.includes(t) || claims.length >= MAX_CLAIMS) return;
     setClaims((c) => [...c, t]);
     setSuggestions((s) => s.filter((x) => x.claim !== t));
   }
@@ -116,15 +113,16 @@ function SetupPageInner() {
     }
   }
 
-  async function estimate(p: Profile, a: string, c: string[]): Promise<GapResult | null> {
+  async function estimate(p: Profile, a: string, c: string[]): Promise<{ gap: GapResult; token: string } | null> {
     if (!c.length) return null;
     setGapLoading(true);
     setError(null);
     try {
-      const { gap } = await api.gap(p, a, c);
-      setGap(gap);
+      const res = await api.gap(p, a, c);
+      setGap(res.gap);
+      setGapToken(res.token);
       setGapFor(gapKeyFor(p, a, c));
-      return gap;
+      return res;
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       return null;
@@ -142,31 +140,21 @@ function SetupPageInner() {
       claims,
       goal,
       timeLimitSec,
-      emailHandler: true,
     };
   }
 
   /** Saves the setup for next time and re-estimates the gap (the only place it's estimated here). */
   async function saveCover() {
     if (!profile || !claims.length) return;
-    saveSetupDraft({ ...draft(), gap, gapFor });
+    saveSetupDraft({ ...draft(), gap, gapToken, gapFor });
     setSavedCover(coverKey);
     const g = await estimate(profile, alias, claims);
-    if (g) saveSetupDraft({ ...draft(), gap: g, gapFor: gapKey });
+    if (g) saveSetupDraft({ ...draft(), gap: g.gap, gapToken: g.token, gapFor: gapKey });
   }
 
   async function start() {
     if (!profile) return;
-    const parsed = SetupSchema.safeParse({
-      scenarioId,
-      custom: scenarioId === "custom" ? custom : undefined,
-      group: scenarioId === "group" ? group : undefined,
-      alias,
-      claims,
-      goal,
-      timeLimitSec,
-      emailHandler: true,
-    });
+    const parsed = SetupSchema.safeParse(draft());
     if (!parsed.success) {
       const issue = parsed.error.issues[0];
       setError(
@@ -187,7 +175,7 @@ function SetupPageInner() {
       return;
     }
     setStarting(true);
-    saveSetupDraft({ ...parsed.data, gap, gapFor: gapKey });
+    saveSetupDraft({ ...parsed.data, gap, gapToken, gapFor: gapKey });
     router.push("/scene");
   }
 
@@ -207,162 +195,23 @@ function SetupPageInner() {
       </div>
       <div className="grid gap-6 lg:grid-cols-[1.35fr_1fr]">
         <div className="space-y-6">
-          <Card>
-            <h2 className="mb-1 text-lg font-black">1. Pick a scene</h2>
-            <p className="mb-4 text-sm font-bold text-muted">Each character has their own voice, personality and way of probing.</p>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {ALL_SCENES.map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => pickScenario(p.id)}
-                  className={cx(
-                    PICK_BASE,
-                    "flex items-center gap-3 p-3",
-                    scenarioId === p.id ? PICK_ON : PICK_OFF,
-                  )}
-                >
-                  {p.id === "party" ? (
-                    <span className="flex shrink-0 -space-x-7">
-                      {PARTY_CAST.map((c) => (
-                        <Avatar key={c.name} palette={c} suspicion={15} getLevel={() => 0} className="h-14 w-14" />
-                      ))}
-                    </span>
-                  ) : (
-                    <Avatar palette={p} suspicion={15} getLevel={() => 0} className="h-16 w-16 shrink-0" />
-                  )}
-                  <span>
-                    <span className="block font-black">{p.label}</span>
-                    <span className="block text-xs font-bold text-muted">
-                      {p.id === "custom" || p.id === "group" || p.id === "party" ? p.blurb : `${p.character}, ${p.title}. ${p.blurb}`}
-                    </span>
-                  </span>
-                </button>
-              ))}
-            </div>
-            {scenarioId === "custom" && (
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                <label className="block">
-                  <Label>Character name</Label>
-                  <Input value={custom.name} onChange={(e) => setCustom({ ...custom, name: e.target.value })} placeholder="Morgan" />
-                </label>
-                <label className="block">
-                  <Label>Voice</Label>
-                  <select
-                    value={custom.voiceId}
-                    onChange={(e) => setCustom({ ...custom, voiceId: e.target.value })}
-                    className={FIELD}
-                  >
-                    {VOICES.map((v) => (
-                      <option key={v.id} value={v.id}>
-                        {v.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="block sm:col-span-2">
-                  <Label>Personality</Label>
-                  <Textarea
-                    rows={2}
-                    value={custom.personality}
-                    onChange={(e) => setCustom({ ...custom, personality: e.target.value })}
-                    placeholder="A retired airline captain. Warm, nosy, has flown every route and loves shop talk."
-                  />
-                </label>
-                <label className="block sm:col-span-2">
-                  <Label hint="optional">Setting</Label>
-                  <Input
-                    value={custom.setting}
-                    onChange={(e) => setCustom({ ...custom, setting: e.target.value })}
-                    placeholder="Seated next to you at a gate delayed by two hours."
-                  />
-                </label>
-              </div>
-            )}
-            {scenarioId === "group" && <GroupBuilder group={group} onChange={setGroup} />}
-          </Card>
+          <ScenePicker scenarioId={scenarioId} onPick={pickScenario} custom={custom} onCustom={setCustom} group={group} onGroup={setGroup} />
 
-          <Card>
-            <h2 className="mb-1 text-lg font-black">2. Your cover story</h2>
-            <p className="mb-4 text-sm font-bold text-muted">
-              This is all {audience} will know about you.{isGroup && " They'll all be listening."}
-            </p>
-            <label className="mb-4 block">
-              <Label hint="the name you'll go by">Alias</Label>
-              <Input value={alias} onChange={(e) => setAlias(e.target.value)} />
-            </label>
-            <Label hint={`${claims.length}/8`}>Claims you&apos;ll fake</Label>
-            <ul className="mb-3 space-y-2">
-              {claims.map((c, i) => (
-                <li key={c} className={cx(ROW, "flex items-start gap-2")}>
-                  <span className="mt-0.5 text-xs font-black text-muted">{i + 1}</span>
-                  <span className="flex-1">{c}</span>
-                  <button
-                    type="button"
-                    className="text-muted hover:text-red"
-                    onClick={() => setClaims((cs) => cs.filter((x) => x !== c))}
-                    aria-label={`Remove claim ${c}`}
-                  >
-                    ✕
-                  </button>
-                </li>
-              ))}
-            </ul>
-            <form
-              className="flex gap-2"
-              onSubmit={(e) => {
-                e.preventDefault();
-                addClaim(draftClaim);
-                setDraftClaim("");
-              }}
-            >
-              <Input
-                value={draftClaim}
-                onChange={(e) => setDraftClaim(e.target.value)}
-                placeholder="I led our migration to Kubernetes"
-              />
-              <Button type="submit" variant="ghost" disabled={!draftClaim.trim() || claims.length >= 8}>
-                Add
-              </Button>
-            </form>
-            <div className="mt-4">
-              <Button type="button" variant="subtle" className="px-0" onClick={suggest} disabled={suggesting}>
-                {suggesting ? "Thinking up lies…" : "✨ Suggest claims from my profile"}
-              </Button>
-              {suggestions.length > 0 && (
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {suggestions.map((s) => (
-                    <button
-                      key={s.claim}
-                      type="button"
-                      onClick={() => addClaim(s.claim)}
-                      title={s.why}
-                      className={cx("animate-sus-pop px-3 py-2 text-xs", PICK_BASE, PICK_OFF)}
-                    >
-                      + {s.claim}
-                      <span className="block text-xs font-semibold text-muted">{s.why}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            <div className="mt-5 flex items-center justify-between gap-3 border-t-2 border-lav-2 pt-4">
-              {coverSaved && gapFresh ? (
-                <span className="flex items-center gap-2 text-sm font-extrabold text-green">
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-green text-xs text-white">✓</span>
-                  Cover story saved
-                </span>
-              ) : (
-                <span className="flex items-center gap-2 text-sm font-bold text-muted">
-                  <span className={cx("h-2.5 w-2.5 rounded-full", claims.length ? "animate-pulse bg-yellow" : "bg-lav-2")} />
-                  {!claims.length ? "Add a claim to save your cover" : coverSaved ? "Save to update the larp gap" : "Unsaved changes"}
-                </span>
-              )}
-              <Btn type="button" size="sm" tone={coverSaved && gapFresh ? "white" : "green"} onClick={saveCover} disabled={(coverSaved && !!gapFresh) || !claims.length || gapLoading}>
-                {gapLoading ? "Saving…" : coverSaved && gapFresh ? "Saved" : "💾 Save cover story"}
-              </Btn>
-            </div>
-          </Card>
+          <CoverStoryCard
+            audience={audience}
+            isGroup={isGroup}
+            alias={alias}
+            onAlias={setAlias}
+            claims={claims}
+            onAddClaim={addClaim}
+            onRemoveClaim={(c) => setClaims((cs) => cs.filter((x) => x !== c))}
+            suggestions={suggestions}
+            suggesting={suggesting}
+            onSuggest={suggest}
+            saved={coverSaved ? (gapFresh ? "fresh" : "stale") : "unsaved"}
+            saving={gapLoading}
+            onSave={saveCover}
+          />
 
           <Card>
             <h2 className="mb-4 text-lg font-black">3. The scene</h2>
@@ -371,66 +220,22 @@ function SetupPageInner() {
               <Input value={goal} onChange={(e) => setGoal(e.target.value)} />
             </label>
             <Label>Time limit</Label>
-            <div className="mb-4 flex gap-2">
+            <div className="flex gap-2">
               {TIME_OPTIONS.map((t) => (
                 <Chip key={t} selected={timeLimitSec === t} onClick={() => setTimeLimitSec(t)}>
                   {t / 60} min
                 </Chip>
               ))}
             </div>
-            {emailTo && (
-              <p className="text-sm font-bold text-muted">
-                📬 Afterwards, the character will email you a follow-up at <strong className="text-ink">{emailTo}</strong>.
-              </p>
-            )}
           </Card>
         </div>
 
         <div className="space-y-6 lg:sticky lg:top-6 lg:self-start">
-          <Card>
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-lg font-black">Larp gap</h2>
-              {gapLoading && (
-                <span className="animate-pulse rounded-full bg-blue-soft px-3 py-1 text-xs font-black uppercase tracking-widest text-blue">
-                  Measuring…
-                </span>
-              )}
-            </div>
-            {gap ? (
-              <div className={cx(!gapFresh && "opacity-50")}>
-                <div className="flex items-baseline gap-3">
-                  <span className="text-5xl font-black tabular-nums">{gap.gapScore}</span>
-                  <span className="font-bold text-muted">/ 100</span>
-                  <span className="ml-auto rounded-full bg-lav px-3 py-1 text-sm font-black text-purple">
-                    ×{gap.multiplier.toFixed(2)} score
-                  </span>
-                </div>
-                <div className="my-3 h-2.5 overflow-hidden rounded-full bg-lav">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-green via-yellow to-red"
-                    style={{ width: `${gap.gapScore}%` }}
-                  />
-                </div>
-                <p className="text-sm font-bold">{gap.rationale}</p>
-                {!gapFresh && !gapLoading && (
-                  <p className="mt-2 text-xs font-extrabold text-[#a8431a]">Something changed. Save your cover story to update the gap.</p>
-                )}
-              </div>
-            ) : (
-              <p className="text-sm text-muted">
-                How far your cover is from the real you. Bigger gap, harder scene, bigger score multiplier. Save your
-                cover story to measure it.
-              </p>
-            )}
-          </Card>
+          <GapCard gap={gap} fresh={gapFresh} loading={gapLoading} />
           <FictionNote />
           {error && <p className={ERROR_NOTE}>{error}</p>}
           <Button type="button" className="w-full py-4 text-base" onClick={start} disabled={starting || !claims.length || !gapFresh || gapLoading}>
-            {starting
-              ? "Preparing the scene…"
-              : gapFresh
-                ? `Enter the scene with ${audience} →`
-                : "Save your cover story first"}
+            {starting ? "Preparing the scene…" : gapFresh ? `Enter the scene with ${audience} →` : "Save your cover story first"}
           </Button>
         </div>
       </div>
@@ -439,92 +244,3 @@ function SetupPageInner() {
 }
 
 const coverKeyFor = (alias: string, claims: string[]) => JSON.stringify([alias.trim(), claims]);
-
-const ALL_SCENES = [...PRESETS, PARTY_PRESET, CUSTOM_PRESET, GROUP_PRESET];
-
-type GroupChar = { name: string; personality: string; expertise: string; voiceId: string };
-
-/** Builder for a custom group scene: 2-3 characters, each with their own voice. */
-function GroupBuilder({
-  group,
-  onChange,
-}: {
-  group: { setting: string; characters: GroupChar[] };
-  onChange: (g: { setting: string; characters: GroupChar[] }) => void;
-}) {
-  const setChar = (i: number, patch: Partial<GroupChar>) =>
-    onChange({ ...group, characters: group.characters.map((c, j) => (j === i ? { ...c, ...patch } : c)) });
-  const used = new Set(group.characters.map((c) => c.voiceId));
-  const preview = castFor({ scenarioId: "group", group: { ...group, characters: group.characters.map((c, i) => ({ ...c, name: c.name || `#${i + 1}` })) } });
-  return (
-    <div className="mt-4 space-y-3">
-      <label className="block">
-        <Label hint="optional">Setting</Label>
-        <Input
-          value={group.setting}
-          onChange={(e) => onChange({ ...group, setting: e.target.value })}
-          placeholder="A backyard barbecue. Everyone works in tech except you, supposedly."
-        />
-      </label>
-      {group.characters.map((c, i) => (
-        <div key={i} className={cx(ROW, "flex gap-3 p-3")}>
-          <Avatar palette={preview[i]} suspicion={15} getLevel={() => 0} className="h-14 w-14 shrink-0" />
-          <div className="grid flex-1 gap-2 sm:grid-cols-2">
-            <Input value={c.name} onChange={(e) => setChar(i, { name: e.target.value })} placeholder={`Character ${i + 1} name`} />
-            <select
-              value={c.voiceId}
-              onChange={(e) => setChar(i, { voiceId: e.target.value })}
-              className={FIELD}
-            >
-              {VOICES.map((v) => (
-                <option key={v.id} value={v.id} disabled={v.id !== c.voiceId && used.has(v.id)}>
-                  {v.label}
-                </option>
-              ))}
-            </select>
-            <Textarea
-              rows={2}
-              className="sm:col-span-2"
-              value={c.personality}
-              onChange={(e) => setChar(i, { personality: e.target.value })}
-              placeholder="A retired airline captain. Warm, nosy, loves shop talk."
-            />
-            <Input
-              className="sm:col-span-2"
-              value={c.expertise}
-              onChange={(e) => setChar(i, { expertise: e.target.value })}
-              placeholder="Knows a lot about… (e.g. aviation, airline operations)"
-            />
-          </div>
-          {group.characters.length > 2 && (
-            <button
-              type="button"
-              className="self-start text-muted hover:text-red"
-              onClick={() => onChange({ ...group, characters: group.characters.filter((_, j) => j !== i) })}
-              aria-label={`Remove character ${i + 1}`}
-            >
-              ✕
-            </button>
-          )}
-        </div>
-      ))}
-      {group.characters.length < 3 && (
-        <Button
-          type="button"
-          variant="ghost"
-          onClick={() =>
-            onChange({
-              ...group,
-              characters: [
-                ...group.characters,
-                { name: "", personality: "", expertise: "", voiceId: VOICES.find((v) => !used.has(v.id))?.id ?? VOICES[0].id },
-              ],
-            })
-          }
-        >
-          + Add a third person
-        </Button>
-      )}
-    </div>
-  );
-}

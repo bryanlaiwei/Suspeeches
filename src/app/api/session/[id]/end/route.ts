@@ -1,13 +1,15 @@
+import { scheduleDebrief } from "@/lib/debrief";
 import { parseBody } from "@/lib/http";
 import { EndBodySchema } from "@/lib/schemas";
-import { endSession, getSession, toPublic } from "@/lib/sessions";
+import { endSession } from "@/lib/sessions";
 
+/** The browser says the call ended. How long it lasted, and whether it was a timeout, is the server's call. */
 export async function POST(req: Request, ctx: RouteContext<"/api/session/[id]/end">) {
   const { id } = await ctx.params;
-  const s = getSession(id);
-  if (!s) return Response.json({ error: "Session not found" }, { status: 404 });
   const body = await parseBody(req, EndBodySchema);
   if (!body.ok) return body.res;
-  await endSession(s, body.data.reason, body.data.tSec);
-  return Response.json({ state: toPublic(s) });
+  const out = await endSession(id, body.data.reason);
+  if (!out) return Response.json({ error: "Session not found" }, { status: 404 });
+  if (out.ended) scheduleDebrief(id);
+  return Response.json(out.response);
 }

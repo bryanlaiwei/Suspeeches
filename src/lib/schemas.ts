@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { SCENARIO_IDS } from "./scenarios";
 
 /* ---------- user input ---------- */
 
@@ -13,7 +14,8 @@ export const ProfileSchema = z.object({
 });
 export type Profile = z.infer<typeof ProfileSchema>;
 
-export const ScenarioIdSchema = z.enum(["recruiter", "networking", "custom", "party", "group"]);
+/** The scenario ids come from the registry in scenarios.ts. */
+export const ScenarioIdSchema = z.enum(SCENARIO_IDS);
 export type ScenarioId = z.infer<typeof ScenarioIdSchema>;
 
 export const CustomCharacterSchema = z.object({
@@ -22,7 +24,6 @@ export const CustomCharacterSchema = z.object({
   voiceId: z.string().trim().min(1).max(64),
   setting: z.string().trim().max(300).default(""),
 });
-export type CustomCharacter = z.infer<typeof CustomCharacterSchema>;
 
 /** A player-built group scene: 2-3 characters, each with a distinct ElevenLabs voice. */
 export const GroupSchema = z
@@ -56,7 +57,6 @@ export const SetupSchema = z.object({
   claims: z.array(z.string().trim().min(1).max(240)).min(1).max(8),
   goal: z.string().trim().min(1).max(240),
   timeLimitSec: z.number().int().min(60).max(600),
-  emailHandler: z.boolean().default(false),
 });
 export type Setup = z.infer<typeof SetupSchema>;
 
@@ -139,29 +139,23 @@ export const DebriefRawSchema = z.object({
 });
 export type DebriefRaw = z.infer<typeof DebriefRawSchema>;
 
-/* ---------- character follow-up email ---------- */
-
-export const FollowupRawSchema = z.object({
-  goal_reached: z.boolean(),
-  sender: z.string(),
-  subject: z.string(),
-  body: z.string(),
-});
-export type FollowupRaw = z.infer<typeof FollowupRawSchema>;
-
 /* ---------- API request bodies ---------- */
 
+/**
+ * Delivery timing only the browser can measure (it hears the audio). It is judge evidence, nothing
+ * more: scene time, ordering and the end of the call are decided on the server.
+ */
 export const TimingSchema = z.object({
   /** ms from the NPC finishing its line to the user starting to speak (null if unknown). */
   responseLatencyMs: z.number().min(0).max(120_000).nullable(),
   /** ms the user spent speaking for this turn (null if unknown). */
   speechMs: z.number().min(0).max(300_000).nullable(),
-  /** seconds since the scene started. */
-  tSec: z.number().min(0).max(3600),
 });
 export type Timing = z.infer<typeof TimingSchema>;
 
 export const EventBodySchema = z.object({
+  /** Order the browser heard the line in (0, 1, 2...). Requests can arrive out of order; this can't. */
+  seq: z.number().int().min(0).max(100_000),
   role: z.enum(["user", "agent"]),
   speaker: z.string().trim().max(60).optional(),
   text: z.string().trim().min(1).max(4000),
@@ -169,30 +163,35 @@ export const EventBodySchema = z.object({
 });
 
 export const SilenceBodySchema = z.object({
-  /** Scene time (s) when the player's turn started (the NPC stopped talking). */
+  /** Browser scene time (s) when the player's turn started (the NPC stopped talking). */
   silentSinceSec: z.number().min(0).max(3600),
+  /** Browser scene time (s) now. Only used to tell one silence from the next. */
   tSec: z.number().min(0).max(3600),
 });
 
 export const EndBodySchema = z.object({
   reason: z.enum(["timeout", "npc_ended", "left", "error"]),
-  tSec: z.number().min(0).max(3600),
 });
 
+/**
+ * `profile` is only read when accounts are off (local dev). Signed-in players' profiles are loaded
+ * from Supabase on the server, never taken from the request.
+ */
 export const CreateSessionBodySchema = z.object({
-  profile: ProfileSchema,
+  profile: ProfileSchema.optional(),
   setup: SetupSchema,
-  gap: GapResultSchema.optional(),
+  /** The signed larp-gap estimate from /api/gap. Missing, stale or forged: the server estimates again. */
+  gapToken: z.string().max(4000).optional(),
 });
 
 export const GapBodySchema = z.object({
-  profile: ProfileSchema,
-  alias: z.string().default(""),
-  claims: z.array(z.string()).min(1).max(8),
+  profile: ProfileSchema.optional(),
+  alias: z.string().trim().max(80).default(""),
+  claims: z.array(z.string().trim().min(1).max(240)).min(1).max(8),
 });
 
 export const SuggestBodySchema = z.object({
-  profile: ProfileSchema,
+  profile: ProfileSchema.optional(),
   scenarioId: ScenarioIdSchema,
   existing: z.array(z.string()).default([]),
 });

@@ -1,4 +1,4 @@
-import { castFor, presetFor } from "./presets";
+import { castFor, isGroupScenario, presetFor } from "./presets";
 import type { Profile, Setup } from "./schemas";
 import type { SuspicionEvent, Turn } from "./types";
 
@@ -21,7 +21,7 @@ export function formatClaims(claims: string[]): string {
 
 export function formatScene(setup: Setup): string {
   const preset = presetFor(setup.scenarioId);
-  if (setup.scenarioId === "party" || setup.scenarioId === "group") {
+  if (isGroupScenario(setup.scenarioId)) {
     const cast = castFor(setup)
       .map((c, i) =>
         setup.scenarioId === "group" && setup.group
@@ -40,16 +40,19 @@ export function formatScene(setup: Setup): string {
 }
 
 export function characterName(setup: Setup): string {
-  if (setup.scenarioId === "party" || setup.scenarioId === "group") return castFor(setup).map((c) => c.name).join(", ").replace(/, ([^,]*)$/, " & $1");
+  if (isGroupScenario(setup.scenarioId)) return castFor(setup).map((c) => c.name).join(", ").replace(/, ([^,]*)$/, " & $1");
   return setup.scenarioId === "custom" && setup.custom ? setup.custom.name : presetFor(setup.scenarioId).character;
 }
 
 export function formatTranscript(turns: Turn[], npcName: string, maxTurns = 40): string {
   const recent = turns.slice(-maxTurns);
   if (!recent.length) return "(nothing said yet)";
-  return recent
-    .map((t) => `[#${t.index} ${fmtTime(t.tSec)}] ${t.role === "user" ? "PLAYER" : (t.speaker ?? npcName).toUpperCase()}: ${t.text}`)
-    .join("\n");
+  return transcriptLines(recent, npcName).join("\n");
+}
+
+/** One line per turn, e.g. "[#3 0:42] PLAYER: ...". */
+export function transcriptLines(turns: Turn[], npcName: string): string[] {
+  return turns.map((t) => `[#${t.index} ${fmtTime(t.tSec)}] ${t.role === "user" ? "PLAYER" : (t.speaker ?? npcName).toUpperCase()}: ${t.text}`);
 }
 
 export function formatJudged(events: SuspicionEvent[]): string {

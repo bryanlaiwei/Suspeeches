@@ -3,21 +3,13 @@
 import { useState } from "react";
 import { fmtTime } from "@/lib/context";
 import type { CastMember } from "@/lib/presets";
-import { moodFor, type Mood } from "@/lib/scoring";
+import { moodFor } from "@/lib/scoring";
 import type { EndReason } from "@/lib/types";
 import { Avatar } from "./Avatar";
-import { Btn, cx, Input } from "./ui";
+import { Btn, cx, Input, MOOD_STYLE } from "./ui";
 import { useAnimatedNumber } from "./useAnimatedNumber";
 
 /* ---------- live call: a light video-call grid ---------- */
-
-/** What each character's bar band reads as (same bands that set their tone of voice). */
-const STATUS: Record<Mood, { label: string; chip: string; bar: string; text: string }> = {
-  warm: { label: "Buying it", chip: "bg-green-soft text-[#2f6b00]", bar: "var(--green)", text: "text-ink" },
-  curious: { label: "Curious", chip: "bg-[#fff1c2] text-[#8a5a00]", bar: "var(--yellow)", text: "text-ink" },
-  skeptical: { label: "Skeptical", chip: "bg-[#ffe1d1] text-[#a8431a]", bar: "var(--orange)", text: "text-ink" },
-  cold: { label: "Onto you", chip: "bg-[#ffd6d6] text-[#a32d2d]", bar: "var(--red)", text: "text-red" },
-};
 
 const TILE = "relative flex min-h-0 flex-col items-center overflow-hidden rounded-3xl border-2 transition";
 const TILE_IDLE = "border-lav-2 shadow-[0_5px_0_var(--lav-2)]";
@@ -44,7 +36,7 @@ export function HeadStatus({
   className?: string;
 }) {
   const v = Math.max(0, Math.min(100, Math.round(value)));
-  const st = STATUS[moodFor(v)];
+  const st = MOOD_STYLE[moodFor(v)];
   return (
     <div className={cx("flex flex-col items-center gap-1.5", className)}>
       <span key={st.label} className={cx("animate-sus-pop rounded-full px-3 py-0.5 text-xs font-black", st.chip)}>
@@ -92,7 +84,7 @@ function PersonTile({
     <div className={cx(TILE, talking ? TILE_TALKING : TILE_IDLE)} style={{ background: `${member.accent}26` }}>
       <HeadStatus value={v} pop={pop} barClass={big ? "w-40" : "w-28"} className="z-10 pt-3" />
       <div className="relative min-h-0 w-full flex-1">
-        <Avatar palette={member} suspicion={shown} getLevel={getLevel} className="absolute inset-x-0 bottom-0 mx-auto h-full w-auto" />
+        <Avatar palette={member} suspicion={shown} getLevel={getLevel} speaking={talking} className="absolute inset-x-0 bottom-0 mx-auto h-full w-auto" />
       </div>
       <NameTag>
         {member.name} <span className="font-bold text-muted">· {member.title}</span>
@@ -277,7 +269,7 @@ export function CallStage({
 
 export function EndOverlay({ reason, npcName, lastLine = null }: { reason: EndReason; npcName: string; lastLine?: string | null }) {
   const caught = reason === "caught";
-  const title = caught ? "BUSTED!" : reason === "left" ? "YOU HUNG UP" : reason === "error" ? "CALL DROPPED" : "TIME'S UP!";
+  const title = caught ? "BUSTED!" : reason === "left" ? "YOU HUNG UP" : reason === "timeout" ? "TIME'S UP!" : "CALL DROPPED";
   const sub = caught
     ? `${npcName} saw right through you. 👀`
     : reason === "left"

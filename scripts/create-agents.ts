@@ -1,45 +1,38 @@
 /**
- * Creates one ElevenLabs agent per scenario from prompts/npc/*.md and prints the env lines.
+ * Creates one ElevenLabs agent per scenario in src/lib/scenarios.ts and records its ID in
+ * src/lib/agents.json (commit that file; agent IDs aren't secret).
  *
- *   ELEVENLABS_API_KEY=... npm run agents:create            # all four
- *   ELEVENLABS_API_KEY=... npm run agents:create recruiter  # just one
- *   npm run agents:update                                   # push prompt/voice changes to the agents in .env.local
+ *   npm run agents:create              # every scenario that has no agent yet
+ *   npm run agents:create recruiter    # just one (add --force to replace an existing agent)
+ *   npm run agents:update              # push voice/LLM/settings changes to the recorded agents
+ *   npm run agents:check               # exit 1 if a live agent's settings differ from prompts/npc
+ *   npm run agents:create -- --import-env  # one-off: copy legacy ELEVENLABS_AGENT_ID_* vars into agents.json
  *
- * Each agent gets: character sheet + shared rules as its system prompt (with {{dynamic variables}}
- * for the cover story), its own voice and LLM, no hang-up tool (the app ends scenes), the client events the app
- * listens to, and (custom agent only) the tts.voice_id override so players can pick a voice.
- * Endpoints: POST /v1/convai/agents/create, PATCH /v1/convai/agents/{agent_id} (update).
+ * The agents are private (authentication on) and hold only the voice(s), LLM and conversation
+ * settings from each character file's frontmatter. The character's prompt and first message are
+ * NOT stored on the agent: the app builds them from prompts/npc/ for every conversation and sends
+ * them as overrides (src/lib/npcPrompt.ts), so prompt edits go live on the next deploy without
+ * touching ElevenLabs. Each agent is tagged with a hash of the settings it holds, so
+ * `agents:check` can tell when an update is due.
+ * Endpoints: POST /v1/convai/agents/create, PATCH and GET /v1/convai/agents/{agent_id}.
  */
-import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { parseFrontmatter } from "../src/lib/prompts";
+import { agentIdFor, AGENTS_PATH } from "../src/lib/agents";
+import { loadPrompt } from "../src/lib/prompts";
+import { SCENARIO_IDS, SCENARIOS, type ScenarioId } from "../src/lib/scenarios";
 
-const SCENARIOS = ["recruiter", "networking", "custom", "party", "group"] as const;
-/** Group agents speak as several characters via ElevenLabs multi-voice tags. */
-const GROUP_SCENARIOS = new Set<string>(["party", "group"]);
+const API = "https://api.elevenlabs.io/v1/convai/agents";
 
-const PLACEHOLDERS: Record<string, string> = {
-  alias: "Alex",
-  cover_story: "- I'm a product designer with five years of experience",
-  scene_goal: "Make a good impression",
-  time_limit_minutes: "5",
-  character_name: "Morgan",
-  character_personality: "Friendly, curious and a little nosy.",
-  character_setting: "A casual first meeting at a coffee shop.",
-  cast: "- Morgan speaks inside <George> tags. Personality: friendly and curious.\n- Riley speaks inside <Rachel> tags. Personality: blunt and skeptical.",
-  setting: "A casual group conversation at a friend's barbecue.",
-  first_message: "<George>Oh hey, come join us!</George> <Rachel>Who are you?</Rachel>",
-};
+/** What the agent says if the app ever fails to send the real prompt: loud, not a silently wrong character. */
+const STUB_PROMPT =
+  "You are a character in Suspeeches. The app sends your real instructions with every conversation. If you are reading this, they were not sent: say there is a technical problem with the call, then stay silent.";
 
-function load(file: string) {
-  return parseFrontmatter(readFileSync(path.join(process.cwd(), "prompts", "npc", file), "utf8"));
-}
-
-function agentBody(scenario: (typeof SCENARIOS)[number]) {
-  const sheet = load(`${scenario}.v1.md`);
-  const rules = load(GROUP_SCENARIOS.has(scenario) ? "_group_rules.v1.md" : "_rules.v1.md");
+export function agentBody(scenario: ScenarioId) {
+  const { meta } = loadPrompt(`npc/${scenario}`);
   // "Label|voice_id|description; ..." → ElevenLabs multi-voice supported_voices.
-  const supportedVoices = (sheet.meta.voices ?? "")
+  const supportedVoices = ("voices" in meta ? meta.voices : "")
     .split(";")
     .map((v) => v.trim())
     .filter(Boolean)
@@ -47,28 +40,22 @@ function agentBody(scenario: (typeof SCENARIOS)[number]) {
       const [label, voice_id, description] = v.split("|").map((x) => x.trim());
       return { label, voice_id, description };
     });
-  const prompt = `${sheet.body}\n\n${rules.body}`;
-  const used = Object.fromEntries(
-    Object.entries(PLACEHOLDERS).filter(([k]) => prompt.includes(`{{${k}}}`) || sheet.meta.first_message?.includes(`{{${k}}}`)),
-  );
 
-  const body = {
-    name: sheet.meta.agent_name,
-    tags: ["sus", `prompt:${scenario}.v${sheet.meta.version}`],
+  const config = {
+    name: SCENARIOS[scenario].agentName,
     conversation_config: {
       agent: {
-        first_message: sheet.meta.first_message,
+        first_message: "",
         language: "en",
         prompt: {
-          prompt,
-          llm: sheet.meta.llm,
+          prompt: STUB_PROMPT,
+          llm: meta.llm,
           temperature: 0.7,
           // No end_call tool: only the app ends a scene (timer, caught, or the player leaving).
           built_in_tools: { end_call: null },
         },
-        dynamic_variables: { dynamic_variable_placeholders: used },
       },
-      tts: { voice_id: sheet.meta.voice_id, ...(supportedVoices.length ? { supported_voices: supportedVoices } : {}) },
+      tts: { voice_id: meta.voice_id, ...(supportedVoices.length ? { supported_voices: supportedVoices } : {}) },
       conversation: {
         max_duration_seconds: 660,
         client_events: [
@@ -85,81 +72,134 @@ function agentBody(scenario: (typeof SCENARIOS)[number]) {
         ],
       },
     },
-    ...(scenario === "custom"
-      ? { platform_settings: { overrides: { conversation_config_override: { tts: { voice_id: true } } } } }
-      : {}),
+    platform_settings: {
+      // Private agent: a conversation needs a token or signed URL minted with the server's API key
+      // (src/lib/elevenlabs.ts). The IDs in agents.json are public, so without this anyone could
+      // start a conversation on your account, with any prompt, since prompt overrides are on.
+      auth: { enable_auth: true },
+      overrides: {
+        conversation_config_override: {
+          // The app sends the prompt and first message every time (see the header comment).
+          agent: { prompt: { prompt: true }, first_message: true },
+          // Players pick the custom character's voice.
+          ...(SCENARIOS[scenario].kind === "custom" ? { tts: { voice_id: true } } : {}),
+        },
+      },
+    },
   };
-
-  return body;
+  return { ...config, tags: ["sus", `scenario:${scenario}`, `config:${configHash(config)}`] };
 }
 
-async function createAgent(scenario: (typeof SCENARIOS)[number], apiKey: string): Promise<string> {
-  const res = await fetch("https://api.elevenlabs.io/v1/convai/agents/create", {
-    method: "POST",
-    headers: { "xi-api-key": apiKey, "Content-Type": "application/json" },
-    body: JSON.stringify(agentBody(scenario)),
+function configHash(config: unknown): string {
+  return createHash("sha256").update(JSON.stringify(config)).digest("hex").slice(0, 12);
+}
+
+async function call(method: "POST" | "PATCH" | "GET", url: string, apiKey: string, body?: unknown) {
+  const res = await fetch(url, {
+    method,
+    headers: { "xi-api-key": apiKey, ...(body ? { "Content-Type": "application/json" } : {}) },
+    ...(body ? { body: JSON.stringify(body) } : {}),
   });
   const text = await res.text();
-  if (!res.ok) throw new Error(`${scenario}: ${res.status} ${text.slice(0, 600)}`);
-  const { agent_id } = JSON.parse(text) as { agent_id: string };
-  return agent_id;
+  if (!res.ok) throw new Error(`${res.status} ${text.slice(0, 600)}`);
+  return JSON.parse(text) as Record<string, unknown>;
 }
 
-async function updateAgent(scenario: (typeof SCENARIOS)[number], agentId: string, apiKey: string): Promise<void> {
-  const res = await fetch(`https://api.elevenlabs.io/v1/convai/agents/${encodeURIComponent(agentId)}`, {
-    method: "PATCH",
-    headers: { "xi-api-key": apiKey, "Content-Type": "application/json" },
-    body: JSON.stringify(agentBody(scenario)),
-  });
-  if (!res.ok) throw new Error(`${scenario}: ${res.status} ${(await res.text()).slice(0, 600)}`);
+const agentsFile = path.join(process.cwd(), AGENTS_PATH);
+
+/** Record agent IDs in src/lib/agents.json, keeping the registry's order. */
+function recordAgents(ids: Partial<Record<ScenarioId, string>>) {
+  const current = JSON.parse(readFileSync(agentsFile, "utf8")) as Partial<Record<string, string>>;
+  const merged = Object.fromEntries(SCENARIO_IDS.flatMap((s) => ((ids[s] ?? current[s]) ? [[s, ids[s] ?? current[s]]] : [])));
+  writeFileSync(agentsFile, `${JSON.stringify(merged, null, 2)}\n`);
 }
 
 async function main() {
+  const mode = process.argv.includes("--update")
+    ? "update"
+    : process.argv.includes("--check")
+      ? "check"
+      : process.argv.includes("--import-env")
+        ? "import-env"
+        : "create";
+  const only = process.argv.slice(2).find((a) => !a.startsWith("--"));
+  const targets = SCENARIO_IDS.filter((s) => !only || s === only);
+  if (!targets.length) {
+    console.error(`Unknown scenario "${only}". Use one of: ${SCENARIO_IDS.join(", ")}`);
+    process.exit(1);
+  }
+
+  if (mode === "import-env") {
+    const ids = Object.fromEntries(targets.flatMap((s) => {
+      const id = process.env[`ELEVENLABS_AGENT_ID_${s.toUpperCase()}`];
+      return id ? [[s, id]] : [];
+    }));
+    recordAgents(ids);
+    console.log(`Recorded ${Object.keys(ids).join(", ") || "nothing"} in ${AGENTS_PATH}. Commit it; the env vars can then go.`);
+    process.exit(0);
+  }
+
   const apiKey = process.env.ELEVENLABS_API_KEY;
   if (!apiKey) {
     console.error("Set ELEVENLABS_API_KEY first (e.g. in .env.local).");
     process.exit(1);
   }
-  const update = process.argv.includes("--update");
-  const only = process.argv.slice(2).find((a) => !a.startsWith("--"));
-  const targets = SCENARIOS.filter((s) => !only || s === only);
-  if (!targets.length) {
-    console.error(`Unknown scenario "${only}". Use one of: ${SCENARIOS.join(", ")}`);
-    process.exit(1);
-  }
 
-  if (update) {
+  if (mode === "create") {
+    const force = process.argv.includes("--force");
+    const created: Partial<Record<ScenarioId, string>> = {};
     let failed = 0;
     for (const scenario of targets) {
-      const id = process.env[`ELEVENLABS_AGENT_ID_${scenario.toUpperCase()}`];
-      if (!id) {
-        console.error(`skip ${scenario}: ELEVENLABS_AGENT_ID_${scenario.toUpperCase()} not set`);
-        failed++;
+      const existing = agentIdFor(scenario);
+      if (existing && !force) {
+        console.log(`skip ${scenario}: already has agent ${existing.id} (use --force to replace it)`);
         continue;
       }
       try {
-        await updateAgent(scenario, id, apiKey);
-        console.log(`updated ${scenario}: ${id}`);
+        const { agent_id } = (await call("POST", `${API}/create`, apiKey, agentBody(scenario))) as { agent_id: string };
+        console.log(`created ${scenario}: ${agent_id}`);
+        created[scenario] = agent_id;
       } catch (err) {
         failed++;
-        console.error(`failed ${err instanceof Error ? err.message : err}`);
+        console.error(`failed ${scenario}: ${err instanceof Error ? err.message : err}`);
       }
+    }
+    if (Object.keys(created).length) {
+      recordAgents(created);
+      console.log(`\nRecorded in ${AGENTS_PATH}. Commit it.`);
     }
     process.exit(failed ? 1 : 0);
   }
 
-  const lines: string[] = [];
+  let failed = 0;
   for (const scenario of targets) {
+    const id = agentIdFor(scenario)?.id;
+    if (!id) {
+      console.error(`skip ${scenario}: no agent in ${AGENTS_PATH} (run \`npm run agents:create ${scenario}\`)`);
+      failed++;
+      continue;
+    }
+    const url = `${API}/${encodeURIComponent(id)}`;
     try {
-      const id = await createAgent(scenario, apiKey);
-      console.log(`created ${scenario}: ${id}`);
-      lines.push(`ELEVENLABS_AGENT_ID_${scenario.toUpperCase()}=${id}`);
+      if (mode === "update") {
+        await call("PATCH", url, apiKey, agentBody(scenario));
+        console.log(`updated ${scenario}: ${id}`);
+        continue;
+      }
+      const want = agentBody(scenario).tags.find((t) => t.startsWith("config:"))!;
+      const live = ((await call("GET", url, apiKey)).tags as string[] | undefined) ?? [];
+      if (live.includes(want)) {
+        console.log(`ok ${scenario}`);
+      } else {
+        failed++;
+        console.error(`out of date ${scenario}: run \`npm run agents:update\` (live ${live.find((t) => t.startsWith("config:")) ?? "untagged"}, repo ${want})`);
+      }
     } catch (err) {
-      console.error(`failed ${err instanceof Error ? err.message : err}`);
+      failed++;
+      console.error(`failed ${scenario}: ${err instanceof Error ? err.message : err}`);
     }
   }
-  if (lines.length) console.log(`\nAdd these to .env.local and to Render:\n\n${lines.join("\n")}\n`);
-  if (lines.length !== targets.length) process.exit(1);
+  process.exit(failed ? 1 : 0);
 }
 
-void main();
+if (process.argv[1]?.endsWith("create-agents.ts")) void main();

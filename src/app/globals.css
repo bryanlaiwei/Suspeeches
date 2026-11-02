@@ -20,6 +20,18 @@
   --orange: #ff9600;
   --orange-dark: #e07b00;
   --pink: #ff86d0;
+  --lime-dark: #a9c41e;
+
+  /* status chips and notes: soft background + dark text of the same hue */
+  --green-ink: #2f6b00;
+  --yellow-soft: #fff1c2;
+  --yellow-ink: #8a5a00;
+  --orange-soft: #ffe1d1;
+  --orange-ink: #a8431a;
+  --red-soft: #ffd6d6;
+  --red-ink: #a32d2d;
+  /* light rows inside cards */
+  --lav-soft: #f6f4ff;
 
   /* semantic tokens (also used by the detailed breakdown components) */
   --bg: var(--lav);
@@ -58,6 +70,15 @@
   --color-red: var(--red);
   --color-orange: var(--orange);
   --color-pink: var(--pink);
+  --color-lime-dark: var(--lime-dark);
+  --color-green-ink: var(--green-ink);
+  --color-yellow-soft: var(--yellow-soft);
+  --color-yellow-ink: var(--yellow-ink);
+  --color-orange-soft: var(--orange-soft);
+  --color-orange-ink: var(--orange-ink);
+  --color-red-soft: var(--red-soft);
+  --color-red-ink: var(--red-ink);
+  --color-lav-soft: var(--lav-soft);
   --font-sans: var(--font-nunito);
   --font-display: var(--font-bricolage);
   --font-mono: var(--font-nunito);

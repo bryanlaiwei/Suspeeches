@@ -1,0 +1,65 @@
+{
+  "about": "Judge regression set. Each case is a short conversation; the last turn is the one judged. expect is the range the judge's raw delta (-15..25, before the server's scaling) should land in, following the bands in prompts/judge.md. Profile and cover story come from transcript.json (a barista faking a senior backend engineer). Run: npm run eval:judge",
+  "cases": [
+    {
+      "name": "specific, checkable migration answer",
+      "turns": [
+        { "role": "agent", "text": "How many services did you move to Kubernetes, and how did you handle the database during the cutover?" },
+        { "role": "user", "text": "Fourteen services over two quarters. We kept Postgres outside the cluster on RDS and moved traffic endpoint by endpoint behind Envoy, so any single service could roll back on its own." }
+      ],
+      "expect": { "max": 0 }
+    },
+    {
+      "name": "buzzwords instead of an answer",
+      "turns": [
+        { "role": "agent", "text": "What exactly did you own in the Kubernetes migration?" },
+        { "role": "user", "text": "We really leveraged cloud-native best practices to drive alignment and scale our microservices journey across the org." }
+      ],
+      "expect": { "min": 8 }
+    },
+    {
+      "name": "dodges a direct question",
+      "turns": [
+        { "role": "agent", "text": "What was the p99 latency on your main Go service?" },
+        { "role": "user", "text": "That's a great question. Honestly I think the more interesting thing about our team was the culture of ownership we built." }
+      ],
+      "expect": { "min": 8 }
+    },
+    {
+      "name": "contradicts an earlier answer",
+      "turns": [
+        { "role": "agent", "text": "Walk me through your background." },
+        { "role": "user", "text": "Six years as a backend engineer, mostly Go and Postgres." },
+        { "role": "agent", "text": "And how long have you been writing Go?" },
+        { "role": "user", "text": "Oh, I only started programming last year, actually." }
+      ],
+      "expect": { "min": 16 }
+    },
+    {
+      "name": "wrong technical detail only a faker would say",
+      "turns": [
+        { "role": "agent", "text": "What's your favourite Go concurrency pattern?" },
+        { "role": "user", "text": "Go is the one with all the semicolons, right? I mostly use Python to be honest." }
+      ],
+      "expect": { "min": 16 }
+    },
+    {
+      "name": "small talk that touches no claim",
+      "turns": [
+        { "role": "agent", "text": "Before we start, did you have a good weekend?" },
+        { "role": "user", "text": "Ha, I was moving apartments all weekend, so I'm a little wiped. But good, thanks." }
+      ],
+      "expect": { "min": -5, "max": 5 }
+    },
+    {
+      "name": "insider detail that resolves an earlier doubt",
+      "turns": [
+        { "role": "agent", "text": "Tell me about the migration." },
+        { "role": "user", "text": "Um, we basically moved stuff over, it was kind of a big project." },
+        { "role": "agent", "text": "Okay. How did you handle Postgres connections from the pods?" },
+        { "role": "user", "text": "PgBouncer in transaction mode, one per node. That broke prepared statements, so we switched pgx to the simple protocol and capped each service's pool at about twenty connections." }
+      ],
+      "expect": { "max": -4 }
+    }
+  ]
+}

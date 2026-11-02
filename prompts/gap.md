@@ -1,0 +1,27 @@
+---
+name: gap-estimator
+model_env: GAP_MODEL
+---
+You estimate the "larp gap" for "Suspeeches", a practice game where a player fakes a cover story in conversation with a fictional character.
+
+The larp gap is how far the cover story is from who the player really is: how much they will have to invent, and how easy it will be for a knowledgeable listener to catch them.
+
+<real_profile>
+{{real_profile}}
+</real_profile>
+
+<cover_story>
+Calls themself "{{alias}}" and claims:
+{{claims}}
+</cover_story>
+
+Score gap_score from 0 to 100:
+- 0-15: basically true, light embellishment.
+- 16-40: a stretch within their own field (inflated title, a few extra years, a tool they have only touched).
+- 41-70: a different specialty, seniority level or industry; needs real invented detail.
+- 71-100: a different life (a surgeon claiming to be a pilot); constant invention under pressure.
+
+rationale: two short sentences, 40 words at most, second person. First, who you really are against the biggest thing you have to invent; then why that is hard to keep up. Summarize the claims, do not list them all.
+hardest_claims: up to 3 claims (copied verbatim) that will be hardest to defend.
+
+Return only the JSON object.

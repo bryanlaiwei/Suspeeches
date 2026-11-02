@@ -1,13 +1,12 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { RequireAuth, SignOutButton } from "@/components/Auth";
 import { Avatar } from "@/components/Avatar";
 import { HeadStatus } from "@/components/CallScreen";
 import { GameHistory } from "@/components/GameHistory";
-import { Button, Card, ERROR_NOTE, FictionNote, Input, Label, Shell, Textarea } from "@/components/ui";
+import { BtnLink, Button, Card, ERROR_NOTE, FictionNote, Input, Label, Shell, Textarea } from "@/components/ui";
 import { api } from "@/lib/client/api";
 import { fetchProfile, storeProfile } from "@/lib/client/profileStore";
 import { gapKeyFor, loadSetupDraft, saveSetupDraft } from "@/lib/client/storage";
@@ -118,7 +117,7 @@ function ProfileForm() {
               style={{ background: `${PRESETS[0].accent}26` }}
             >
               <HeadStatus value={demoSus} barClass="w-12 sm:w-24" />
-              <Avatar palette={PRESETS[0]} suspicion={demoSus} getLevel={() => 0} className="mt-1 w-24 sm:w-36" />
+              <Avatar palette={PRESETS[0]} suspicion={demoSus} className="mt-1 w-24 sm:w-36" />
             </div>
             <ol className="space-y-2">
               {[
@@ -192,9 +191,7 @@ function ProfileForm() {
                 <h2 className="text-2xl font-black">Your history</h2>
                 <p className="text-sm font-bold text-muted">Every scene you&apos;ve played, newest first.</p>
               </div>
-              <Link href="/setup">
-                <Button>Play a scene →</Button>
-              </Link>
+              <BtnLink href="/setup">Play a scene →</BtnLink>
             </div>
             <GameHistory />
           </div>

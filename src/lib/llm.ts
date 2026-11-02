@@ -20,27 +20,63 @@ export class InvalidOutputError extends Error {
   }
 }
 
+/** A piece of the user message. `cache` puts a prompt-cache breakpoint right after it. */
+export interface PromptBlock {
+  text: string;
+  cache?: boolean;
+}
+
 export interface StructuredRequest<S extends z.ZodType> {
   label: string;
   model: string;
   system: string;
-  user: string;
+  user: string | PromptBlock[];
+  /** Put a prompt-cache breakpoint after the system prompt (worth it when it repeats across calls). */
+  cacheSystem?: boolean;
   schema: S;
   maxTokens: number;
   effort: "low" | "medium" | "high";
+  /** Per-request overrides of the client defaults (45 s timeout, 2 SDK retries). */
+  timeoutMs?: number;
+  maxRetries?: number;
 }
 
 /** One model call returning raw text. Swappable in tests. */
-export type RawCaller = (req: Omit<StructuredRequest<z.ZodType>, "label">) => Promise<string>;
+export type RawCaller = (req: StructuredRequest<z.ZodType>) => Promise<string>;
+
+const EPHEMERAL = { type: "ephemeral" } as const;
+
+/**
+ * Prompt caching: a breakpoint caches everything before it for 5 minutes, and the next request
+ * reads it back at a tenth of the price (and faster) if its prompt starts with the same blocks. A
+ * prefix shorter than the model's minimum (512 tokens on Haiku 5.5) just isn't cached; no error.
+ */
+export function toMessageParams(req: StructuredRequest<z.ZodType>): Pick<Anthropic.MessageCreateParamsNonStreaming, "system" | "messages"> {
+  const system = req.cacheSystem ? [{ type: "text" as const, text: req.system, cache_control: EPHEMERAL }] : req.system;
+  const content =
+    typeof req.user === "string"
+      ? req.user
+      : req.user.map((b) => ({ type: "text" as const, text: b.text, ...(b.cache ? { cache_control: EPHEMERAL } : {}) }));
+  return { system, messages: [{ role: "user", content }] };
+}
 
 export const anthropicCaller: RawCaller = async (req) => {
-  const res = await anthropic().messages.create({
-    model: req.model,
-    max_tokens: req.maxTokens,
-    system: req.system,
-    messages: [{ role: "user", content: req.user }],
-    output_config: { format: zodOutputFormat(req.schema), effort: req.effort },
-  });
+  const started = Date.now();
+  const res = await anthropic().messages.create(
+    {
+      model: req.model,
+      max_tokens: req.maxTokens,
+      ...toMessageParams(req),
+      output_config: { format: zodOutputFormat(req.schema), effort: req.effort },
+    },
+    { timeout: req.timeoutMs, maxRetries: req.maxRetries },
+  );
+  if (process.env.LLM_DEBUG === "1") {
+    const u = res.usage;
+    console.info(
+      `[llm:${req.label}] ${Date.now() - started} ms · input ${u.input_tokens} · cache read ${u.cache_read_input_tokens ?? 0} · cache write ${u.cache_creation_input_tokens ?? 0} · output ${u.output_tokens}`,
+    );
+  }
   if (res.stop_reason === "refusal") throw new InvalidOutputError("model refused", "");
   if (res.stop_reason === "max_tokens") throw new InvalidOutputError("output truncated", "");
   return res.content

@@ -1,6 +1,6 @@
 import { suggestClaims } from "@/lib/gap";
 import { errorResponse, parseBody } from "@/lib/http";
-import { requireUser } from "@/lib/supabase-server";
+import { requireUser, trustedProfile } from "@/lib/supabase-server";
 import { SuggestBodySchema } from "@/lib/schemas";
 
 export async function POST(req: Request) {
@@ -9,7 +9,9 @@ export async function POST(req: Request) {
   const body = await parseBody(req, SuggestBodySchema);
   if (!body.ok) return body.res;
   try {
-    const suggestions = await suggestClaims(body.data.profile, body.data.scenarioId, body.data.existing);
+    const trusted = await trustedProfile(auth.owner, body.data.profile);
+    if (!trusted.ok) return trusted.res;
+    const suggestions = await suggestClaims(trusted.profile, body.data.scenarioId, body.data.existing);
     return Response.json({ suggestions });
   } catch (err) {
     return errorResponse(err, 502);

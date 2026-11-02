@@ -23,8 +23,3 @@ export function errorResponse(err: unknown, status = 500): Response {
   console.error("[api]", message);
   return Response.json({ error: message }, { status });
 }
-
-/** Public origin for links in emails; Render sets RENDER_EXTERNAL_URL. */
-export function appUrl(req: Request): string {
-  return process.env.PUBLIC_APP_URL || process.env.RENDER_EXTERNAL_URL || new URL(req.url).origin;
-}

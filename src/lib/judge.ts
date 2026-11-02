@@ -1,7 +1,7 @@
-import { characterName, formatClaims, formatProfile, formatScene, formatTranscript } from "./context";
+import { characterName, formatClaims, formatProfile, formatScene, transcriptLines } from "./context";
 import { castFor } from "./presets";
 import { env, llmMock } from "./env";
-import { structuredCall, type RawCaller } from "./llm";
+import { structuredCall, type PromptBlock, type RawCaller } from "./llm";
 import { mockJudge } from "./mock";
 import { render } from "./prompts";
 import { JudgeRawSchema, JudgeResultSchema, type Profile, type Setup } from "./schemas";
@@ -48,7 +48,7 @@ function listenersBlock(setup: JudgeInput["setup"]): string {
 }
 
 export function judgeSystemPrompt(input: Pick<JudgeInput, "profile" | "setup">): string {
-  return render("judge.v1", {
+  return render("judge", {
     real_profile: formatProfile(input.profile),
     alias: input.setup.alias,
     claims: formatClaims(input.setup.claims),
@@ -57,17 +57,44 @@ export function judgeSystemPrompt(input: Pick<JudgeInput, "profile" | "setup">):
   });
 }
 
-export function judgeUserPrompt(input: JudgeInput): string {
+/**
+ * The judge's user message, split into blocks for prompt caching. Within a session the system
+ * prompt never changes and the transcript only grows, so the transcript goes first, one block per
+ * line, with a cache breakpoint after the last line: the next turn's request starts with the same
+ * blocks plus a few new lines, so it reads everything up to here from the cache. What changes every
+ * turn (claim status, the turn itself, its timing) comes after the breakpoint.
+ *
+ * The whole transcript is sent (up to JUDGE_MAX_LINES), not a sliding window: dropping the oldest
+ * line would change the start of the prompt and miss the cache on every turn.
+ */
+export function judgeUserBlocks(input: JudgeInput): PromptBlock[] {
   const npc = characterName(input.setup);
-  const before = input.transcript.filter((t) => t.index < input.turn.index);
+  const before = input.transcript.filter((t) => t.index < input.turn.index).slice(-JUDGE_MAX_LINES);
+  const lines = before.length ? transcriptLines(before, npc) : ["(nothing said yet)"];
   return [
-    `<transcript_so_far>\n${formatTranscript(before, npc)}\n</transcript_so_far>`,
-    `<claim_status_before_this_turn>\n${input.previousClaims.map((c) => `- ${c.claim}: ${c.status}`).join("\n")}\n</claim_status_before_this_turn>`,
-    `<latest_player_turn index="${input.turn.index}">\n${input.turn.text}\n</latest_player_turn>`,
-    `<delivery_signals>\n${describeSignals(input.turn.signals)}\n</delivery_signals>`,
-    "Score the latest player turn.",
-  ].join("\n\n");
+    { text: "<transcript_so_far>" },
+    ...lines.map((line, i) => ({ text: `\n${line}`, cache: i === lines.length - 1 })),
+    {
+      text: [
+        "\n</transcript_so_far>",
+        `<claim_status_before_this_turn>\n${input.previousClaims.map((c) => `- ${c.claim}: ${c.status}`).join("\n")}\n</claim_status_before_this_turn>`,
+        `<latest_player_turn index="${input.turn.index}">\n${input.turn.text}\n</latest_player_turn>`,
+        `<delivery_signals>\n${describeSignals(input.turn.signals)}\n</delivery_signals>`,
+        "Score the latest player turn.",
+      ].join("\n\n"),
+    },
+  ];
 }
+
+/** Far more than a 10-minute scene produces; only there to bound a runaway session. */
+export const JUDGE_MAX_LINES = 400;
+
+/**
+ * Judge calls run one at a time per session and the scene end waits for them, so a slow call holds
+ * up every later turn. Fail fast instead: no SDK retries, and structuredCall's single retry (which
+ * also covers timeouts) caps a turn at about 2 × JUDGE_TIMEOUT_MS before the neutral fallback.
+ */
+export const JUDGE_TIMEOUT_MS = 12_000;
 
 /**
  * Judge one user turn. Never throws: on repeated failure it returns a neutral, degraded result
@@ -85,10 +112,13 @@ export async function judgeTurn(input: JudgeInput, call?: RawCaller): Promise<Ju
                 label: "judge",
                 model: env.judgeModel,
                 system: judgeSystemPrompt(input),
-                user: judgeUserPrompt(input),
+                cacheSystem: true,
+                user: judgeUserBlocks(input),
                 schema: JudgeRawSchema,
                 maxTokens: 2000,
                 effort: "low",
+                timeoutMs: JUDGE_TIMEOUT_MS,
+                maxRetries: 0,
               },
               call,
             )

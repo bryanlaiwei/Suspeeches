@@ -15,7 +15,7 @@ export async function estimateGap(profile: Profile, alias: string, claims: strin
         await structuredCall({
           label: "gap",
           model: env.gapModel,
-          system: render("gap.v1", {
+          system: render("gap", {
             real_profile: formatProfile(profile),
             alias: alias || profile.name,
             claims: formatClaims(claims),
@@ -42,7 +42,7 @@ export async function suggestClaims(profile: Profile, scenarioId: ScenarioId, ex
   const { data } = await structuredCall({
     label: "suggest",
     model: env.gapModel,
-    system: render("suggest.v1", {
+    system: render("suggest", {
       real_profile: formatProfile(profile),
       scene: formatScene({
         scenarioId,
@@ -50,7 +50,6 @@ export async function suggestClaims(profile: Profile, scenarioId: ScenarioId, ex
         claims: ["-"],
         goal: preset.defaultGoal,
         timeLimitSec: 300,
-        emailHandler: false,
       }),
       existing: existing.length ? formatClaims(existing) : "(none)",
     }),

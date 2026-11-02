@@ -4,7 +4,7 @@ import { structuredCall } from "./llm";
 import { mockDebrief } from "./mock";
 import { render } from "./prompts";
 import { DebriefRawSchema, type DebriefRaw } from "./schemas";
-import { finalScore } from "./scoring";
+import { cutShort, finalScore } from "./scoring";
 import type { Session } from "./sessions";
 import type { Debrief } from "./types";
 
@@ -31,7 +31,7 @@ export async function buildDebrief(s: Session): Promise<Debrief> {
         await structuredCall({
           label: "summarizer",
           model: env.summaryModel,
-          system: render("summarizer.v1", {
+          system: render("summarizer", {
             real_profile: formatProfile(s.profile),
             alias: s.setup.alias,
             claims: formatClaims(s.setup.claims),
@@ -52,6 +52,9 @@ export async function buildDebrief(s: Session): Promise<Debrief> {
           schema: DebriefRawSchema,
           maxTokens: 8000,
           effort: "medium",
+          // At most 2 attempts × 2 tries × 70 s, inside the debrief job's lock (debrief.ts).
+          timeoutMs: 70_000,
+          maxRetries: 1,
         })
       ).data;
     } catch (err) {
@@ -59,7 +62,7 @@ export async function buildDebrief(s: Session): Promise<Debrief> {
       raw = {
         outcome,
         final_suspicion: s.suspicion,
-        headline: outcome === "survived" ? "You made it out." : "Busted.",
+        headline: outcome === "caught" ? "Busted." : cutShort(endReason) ? "Cut short." : "You made it out.",
         timeline: topSpikes.map((e) => ({ turn_index: e.turnIndex, reason: e.reasons[0] ?? "" })),
         claims: s.claims.map((c) => ({
           claim: c.claim,

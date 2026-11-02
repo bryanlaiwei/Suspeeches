@@ -16,8 +16,7 @@ A voice game where you larp your way through social situations: a recruiter scre
   <img src="https://img.shields.io/badge/Claude_API-D97757?style=flat&logo=anthropic&logoColor=white" alt="Claude API" />
   <img src="https://img.shields.io/badge/Supabase-3ECF8E?style=flat&logo=supabase&logoColor=white" alt="Supabase" />
   <img src="https://img.shields.io/badge/PostgreSQL-4169E1?style=flat&logo=postgresql&logoColor=white" alt="PostgreSQL" />
-  <img src="https://img.shields.io/badge/Agentboxd-7B6CF6?style=flat" alt="Agentboxd" />
-  <img src="https://img.shields.io/badge/Render-000000?style=flat&logo=render&logoColor=white" alt="Render" />
+  <img src="https://img.shields.io/badge/Railway-0B0D0E?style=flat&logo=railway&logoColor=white" alt="Railway" />
 </p>
 
 > [!NOTE]
@@ -38,12 +37,11 @@ flowchart LR
   app -- "private notes" --> npc
   app --> db["Supabase<br/>(profiles, games)"]
   app -- "end of call" --> summary["Claude summarizer"]
-  summary --> mail["Agentboxd<br/>follow-up email"]
 ```
 
 The characters are ElevenLabs agents with their own speech-to-text, language model and voice. They only ever see your cover story. Group scenes use one multi-voice agent that tags each character's lines, so the app knows whose face to move.
 
-After each of your turns, a Claude judge reads your real profile, your cover story, the transcript and your timing (pauses, filler words, speaking speed) and returns a suspicion change for each listener. The server validates it, applies the scoring rules, and quietly passes the next question and the character's new mood back to the agent. The characters never mention numbers. When the call ends, a second Claude call writes the debrief, and the character emails you an in-character follow-up.
+After each of your turns, a Claude judge reads your real profile, your cover story, the transcript and your timing (pauses, filler words, speaking speed) and returns a suspicion change for each listener. The server validates it, applies the scoring rules, and quietly passes the next question and the character's new mood back to the agent. The characters never mention numbers. When the call ends, a second Claude call writes the debrief.
 
 ## How suspicion works
 
@@ -65,17 +63,16 @@ The call ends in one of two ways: anyone hits 100 (you're caught) or the clock r
 - Sign up with email and password, and save your real profile once. Only the hidden judge sees it.
 - Pick a scene: Dana's recruiter screen, a networking chat with Priya, the startup interview with Maya, Theo and Jordan, or write your own character or group.
 - Write your cover story, or get claims suggested from your profile. Save it to see your larp gap.
-- Choose 1, 5 or 10 minutes.
+- Choose 2.5, 5 or 10 minutes.
 
 **Play:**
 
 - Talk on a video-call screen, with one tile per character and their status and suspicion over their head.
-- Watch faces change as they get suspicious. Whoever is talking moves their mouth, and the latest line shows as a caption.
+- Watch faces change as they get suspicious. Whoever is talking moves their mouth.
 
 **Afterwards:**
 
 - Read the debrief: the result and score, a suspicion timeline you can click into, claim-by-claim verdicts, three tips and the full transcript.
-- Get the character's follow-up email, from an interview invite to a polite brush-off.
 - See past games on your profile.
 
 ## Project structure
@@ -84,39 +81,70 @@ The call ends in one of two ways: anyone hits 100 (you're caught) or the clock r
 |---|---|
 | [`src/app`](src/app) | Pages (sign-in, profile, setup, scene, debrief) and the API routes |
 | [`src/components`](src/components) | Call screen, scene runner, faces, timeline, transcript and the theme kit |
-| [`src/lib`](src/lib) | Judge, scoring, larp gap, summarizer, sessions, ElevenLabs and email |
-| [`prompts`](prompts) | Versioned prompts for the judge, gap, summarizer, follow-up and every character |
-| [`scripts`](scripts) | Creates and updates the ElevenLabs agents, and tests the judge |
+| [`src/lib`](src/lib) | Judge, scoring, larp gap, summarizer, sessions and ElevenLabs |
+| [`prompts`](prompts) | Prompts for the judge, gap, summarizer and every character, compiled into `src/lib/prompts.generated.ts` |
+| [`scripts`](scripts) | Creates and updates the ElevenLabs agents |
+| [`supabase`](supabase) | Database schema and row-level-security policies for profiles and games |
 
 ## Run it locally
 
-You need Node.js 20 or newer, plus API keys for Anthropic and ElevenLabs. Supabase (accounts) and Agentboxd (emails) are optional.
+You need Node.js 22, plus API keys for Anthropic and ElevenLabs. Supabase (accounts) is optional.
 
 Copy `.env.example` to `.env.local` and fill it in. Do not commit `.env.local`.
 
+For accounts, create a Supabase project, run [`supabase/schema.sql`](supabase/schema.sql) in its SQL editor, and set `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` and the server-only `SUPABASE_SECRET_KEY` (only the server saves games, so players can read their history but can't write scores into it). The row-level-security policies in that file are what keep each player's profile and history private, so don't skip them.
+
 ```bash
 npm install
-npm run agents:create   # once: creates the five ElevenLabs agents and prints their IDs
+npm run agents:create   # only for your own ElevenLabs account: creates the agents, records them in src/lib/agents.json
 npm run dev             # http://localhost:3000
 ```
 
-Paste the printed `ELEVENLABS_AGENT_ID_*` lines into `.env.local`. After editing a character in `prompts/npc`, run `npm run agents:update` to push the change.
+The agent IDs are committed in [`src/lib/agents.json`](src/lib/agents.json). They aren't secret: the agents are private, so starting a conversation needs a token minted with your API key. There's nothing to paste. If you use your own ElevenLabs account, `npm run agents:create -- --force` makes new agents and rewrites the file.
+
+### Adding a scenario
+
+Every scenario is one entry in [`src/lib/scenarios.ts`](src/lib/scenarios.ts): its label, character, blurb, goal, avatar and agent name. The zod schema, setup screen, health check and agent script all read it. To add one:
+
+1. Add the entry to `SCENARIOS`.
+2. Write `prompts/npc/<id>.md`: the character sheet, with `voice_id`, `llm` and `first_message` (plus `voices` for a multi-voice panel) in its frontmatter. Typecheck fails until it exists.
+3. Run `npm run agents:create <id>` and commit `src/lib/agents.json`.
+
+### Prompts
+
+Every prompt is a Markdown file in `prompts/`. `npm run prompts` compiles them into `src/lib/prompts.generated.ts` (this also runs before `dev`, `build`, `typecheck` and `test`, and `next dev` recompiles when a file changes). Code renders prompts by name, so a wrong prompt name or a missing `{{variable}}` fails `npm run typecheck` instead of a live request.
+
+The character prompts live only in the repo. The app builds each character's prompt and first message for every call and sends them to ElevenLabs as overrides, so editing a file in `prompts/npc` goes live on the next deploy. The agents only hold the voice, LLM and settings from each file's frontmatter: after changing those, run `npm run agents:update`. `npm run agents:check` tells you if any live agent is out of date.
+
+Each saved game records the hash of every prompt and the model it ran on (`judge_prompt`, `judge_model` and `npc_prompt` in the `games` table). After changing `prompts/judge.md` or `JUDGE_MODEL`, run `npm run eval:judge` to check the judge still scores a fixed set of example answers in the expected ranges (`src/lib/__fixtures__/judge-evals.json`).
 
 ```bash
 npm run typecheck
 npm run lint
-npm run test:judge
+npm test             # unit tests (vitest), no API calls
+npm run test:live    # the fixed judge transcript against the real JUDGE_MODEL
+npm run eval:judge   # judge regression set, add -- --runs 3 for medians
 ```
 
 > [!TIP]
 > To look around without any keys, run `npm run dev:mock`. The judge and debrief are canned, the characters speak with your browser's voice, and you type instead of talking.
 
 > [!IMPORTANT]
-> Browsers only allow the microphone over HTTPS or on localhost. On Render, keep a single instance, since live sessions are kept in memory.
+> Browsers only allow the microphone over HTTPS or on localhost. Without `SUPABASE_SECRET_KEY`, live sessions are kept in memory, so run a single instance. With it, they live in the `game_sessions` table from [`supabase/schema.sql`](supabase/schema.sql): they survive restarts and deploys, and any number of instances works.
+
+## Deploy
+
+The repo deploys to [Railway](https://railway.com) as is: [`railway.json`](railway.json) sets the start command and the `/api/health` health check, and Railway builds the Next.js app on its own.
+
+1. In Supabase, run [`supabase/schema.sql`](supabase/schema.sql), and under Authentication → URL Configuration set the Site URL to your app's URL and add `<your URL>/login` as a redirect URL.
+2. In Railway, create a service from this repo and add the variables from [`.env.example`](.env.example) before the first build (the `NEXT_PUBLIC_*` ones are baked in at build time). In production set `SUPABASE_SECRET_KEY` and `APP_SECRET`. Then generate a public domain: the microphone needs HTTPS.
+3. Run `npm run agents:update` so the agents accept the app's prompt overrides, then `npm run agents:check`.
+4. Open `/api/health` and check that everything you configured is `true`.
 
 ## Scope and limitations
 
 - Delivery is judged from the transcript and timing, not from your actual voice, so tone and confidence only count through what you say and how fast.
-- Live sessions live in memory, so a server restart drops calls in progress. Finished games are saved to Supabase.
+- Without `SUPABASE_SECRET_KEY`, live sessions live in memory, so a server restart drops calls in progress, and finished games aren't saved to history.
+- Anything that affects the score is decided on the server: the real profile is read from Supabase, the larp gap is signed by the server, and time runs on the server's clock from the moment the call connects. Only things only the browser can hear (when you start talking, silences) come from it.
 - Group scenes are one agent playing several voices, so characters can occasionally talk over each other or take a beat to hand off.
 - The judge is a language model. It can be wrong, and the scores are a game, not an assessment.

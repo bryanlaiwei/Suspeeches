@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { fmtTime } from "@/lib/context";
-import { cx } from "./ui";
+import { CHIP, cx } from "./ui";
 
 export interface LiveLine {
   id: number;
@@ -46,7 +46,7 @@ export function Transcript({
               key={l.id}
               type="button"
               onClick={() => l.turnIndex !== undefined && onSelectTurn?.(l.turnIndex)}
-              className="mx-auto block rounded-full bg-[#fff1c2] px-3 py-1 text-xs font-extrabold text-[#8a5a00] hover:brightness-95"
+              className={cx("mx-auto block rounded-full px-3 py-1 text-xs font-extrabold hover:brightness-95", CHIP.warn)}
             >
               {fmtTime(l.tSec)} · {l.text}
             </button>
@@ -73,8 +73,7 @@ export function Transcript({
                 className={cx(
                   "mt-1 rounded-full px-2.5 py-0.5 text-xs font-extrabold",
                   l.delta === null && "animate-pulse text-muted",
-                  typeof l.delta === "number" && l.delta > 0 && "bg-[#ffd6d6] text-[#a32d2d] hover:brightness-95",
-                  typeof l.delta === "number" && l.delta <= 0 && "bg-green-soft text-[#2f6b00] hover:brightness-95",
+                  typeof l.delta === "number" && cx(l.delta > 0 ? CHIP.bad : CHIP.good, "hover:brightness-95"),
                 )}
               >
                 {l.delta === null

@@ -15,19 +15,24 @@ async function post<T>(url: string, body: unknown): Promise<T> {
   return json as T;
 }
 
+/**
+ * The profile sent with suggest, gap and createSession is only used when accounts are off; for a
+ * signed-in player the server loads their saved profile itself.
+ */
 export const api = {
   suggest: (profile: Profile, scenarioId: ScenarioId, existing: string[]) =>
     post<{ suggestions: { claim: string; why: string }[] }>("/api/suggest", { profile, scenarioId, existing }),
+  /** `token` is the server's signature over this estimate; pass it back to createSession. */
   gap: (profile: Profile, alias: string, claims: string[]) =>
-    post<{ gap: GapResult }>("/api/gap", { profile, alias, claims }),
-  createSession: (profile: Profile, setup: Setup, gap?: GapResult | null) =>
-    post<CreateSessionResponse>("/api/session", { profile, setup, gap: gap ?? undefined }),
-  event: (id: string, role: "user" | "agent", text: string, timing: Timing, speaker?: string) =>
-    post<EventResponse>(`/api/session/${id}/event`, { role, text, timing, speaker }),
+    post<{ gap: GapResult; token: string }>("/api/gap", { profile, alias, claims }),
+  createSession: (profile: Profile, setup: Setup, gapToken?: string) =>
+    post<CreateSessionResponse>("/api/session", { profile, setup, gapToken }),
+  connected: (id: string) => post<{ state: PublicSessionState }>(`/api/session/${id}/connected`, {}),
+  event: (id: string, seq: number, role: "user" | "agent", text: string, timing: Timing, speaker?: string) =>
+    post<EventResponse>(`/api/session/${id}/event`, { seq, role, text, timing, speaker }),
   silence: (id: string, silentSinceSec: number, tSec: number) =>
     post<SilenceResponse>(`/api/session/${id}/silence`, { silentSinceSec, tSec }),
-  end: (id: string, reason: "timeout" | "npc_ended" | "left" | "error", tSec: number) =>
-    post<{ state: PublicSessionState }>(`/api/session/${id}/end`, { reason, tSec }),
+  end: (id: string, reason: "timeout" | "npc_ended" | "left" | "error") =>
+    post<{ state: PublicSessionState }>(`/api/session/${id}/end`, { reason }),
   debrief: (id: string) => post<{ state: PublicSessionState }>(`/api/session/${id}/debrief`, {}),
-  sendFollowup: (id: string) => post<{ state: PublicSessionState }>(`/api/session/${id}/followup`, {}),
 };

@@ -1,44 +1,33 @@
-import { readFileSync } from "node:fs";
-import path from "node:path";
+import { PROMPTS } from "./prompts.generated";
 
-export interface PromptFile {
-  meta: Record<string, string>;
-  body: string;
+/**
+ * Prompts are compiled into prompts.generated.ts from prompts/**\/*.md (scripts/gen-prompts.ts), so
+ * names and variables are checked by TypeScript: a typo in a prompt name, or a {{variable}} the
+ * caller doesn't supply, fails `npm run typecheck`. Nothing is read from disk at runtime.
+ */
+export type PromptName = keyof typeof PROMPTS;
+export type PromptVars<N extends PromptName> = (typeof PROMPTS)[N]["vars"][number];
+
+export function loadPrompt<N extends PromptName>(name: N): (typeof PROMPTS)[N] {
+  return PROMPTS[name];
 }
 
-const cache = new Map<string, PromptFile>();
-
-/** Load prompts/<name>.md (frontmatter of simple `key: value` lines + body). */
-export function loadPrompt(name: string): PromptFile {
-  const hit = cache.get(name);
-  if (hit && process.env.NODE_ENV === "production") return hit;
-
-  const file = path.join(process.cwd(), "prompts", `${name}.md`);
-  const raw = readFileSync(file, "utf8");
-  const parsed = parseFrontmatter(raw);
-  cache.set(name, parsed);
-  return parsed;
+/** Content hash of one or more prompt files (frontmatter + body), saved with each game. */
+export function promptHash(...names: PromptName[]): string {
+  return names.map((n) => PROMPTS[n].hash).join("+");
 }
 
-export function parseFrontmatter(raw: string): PromptFile {
-  const match = raw.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
-  if (!match) return { meta: {}, body: raw.trim() };
-  const meta: Record<string, string> = {};
-  for (const line of match[1].split("\n")) {
-    const i = line.indexOf(":");
-    if (i > 0) meta[line.slice(0, i).trim()] = line.slice(i + 1).trim();
-  }
-  return { meta, body: match[2].trim() };
-}
+export class MissingPromptVarError extends Error {}
 
-/** Replace {{key}} placeholders. Unknown keys are left as-is so mistakes are visible. */
+/** Replace {{key}} placeholders. A placeholder without a value is a bug: throw rather than send it to a model. */
 export function fill(template: string, vars: Record<string, string | number>): string {
-  return template.replace(/\{\{(\w+)\}\}/g, (whole, key: string) =>
-    key in vars ? String(vars[key]) : whole,
-  );
+  return template.replace(/\{\{(\w+)\}\}/g, (_, key: string) => {
+    if (!(key in vars)) throw new MissingPromptVarError(`No value for {{${key}}}`);
+    return String(vars[key]);
+  });
 }
 
-/** Render a prompt file's body with variables. */
-export function render(name: string, vars: Record<string, string | number>): string {
-  return fill(loadPrompt(name).body, vars);
+/** Render a prompt's body; TypeScript requires exactly the variables it uses. */
+export function render<N extends PromptName>(name: N, vars: { [K in PromptVars<N>]: string | number }): string {
+  return fill(PROMPTS[name].body, vars);
 }

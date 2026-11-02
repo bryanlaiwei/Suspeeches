@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { Card, ERROR_NOTE } from "@/components/ui";
 import { supabase } from "@/lib/client/supabase";
 import { fmtTime } from "@/lib/context";
+import { outcomeLabel } from "@/lib/scoring";
 
 interface GameRow {
   id: string;
@@ -48,7 +49,7 @@ export function GameHistory() {
               <Link href={`/debrief?id=${g.id}`}>
                 <Card className="flex items-center gap-4 transition hover:bg-panel-2">
                   <span className="w-28 font-black" style={{ color: caught ? "var(--red)" : "var(--green)" }}>
-                    {caught ? "CAUGHT" : g.end_reason === "left" ? "WALKED OUT" : "SURVIVED"}
+                    {outcomeLabel(caught, g.end_reason)}
                   </span>
                   <span className="flex-1 text-sm">
                     <span className="font-black">

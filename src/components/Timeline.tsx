@@ -1,35 +1,30 @@
 "use client";
 
 import { fmtTime } from "@/lib/context";
+import { SPIKE_DELTA, START_SUSPICION } from "@/lib/scoring";
 import type { SuspicionEvent } from "@/lib/types";
 
 const W = 640;
 const H = 220;
 const PAD = { l: 34, r: 16, t: 22, b: 26 };
 
-/** Suspicion over time. Markers are clickable; spikes are labelled; optional replay cursor. */
+/** Suspicion over time. Markers are clickable; spikes are labelled. */
 export function Timeline({
-  start = 20,
   series,
   events,
   durationSec,
   spikeTurns,
   selected,
   onSelect,
-  cursorSec,
 }: {
   events: SuspicionEvent[];
   durationSec: number;
   spikeTurns: Set<number>;
   selected: number | null;
   onSelect: (turnIndex: number | null) => void;
-  cursorSec?: number | null;
   /** Group scenes: one line per character instead of a single overall line. */
   series?: { name: string; color: string }[];
-  /** Where suspicion started (depends on the character's mood). */
-  start?: number;
 }) {
-  const START_SUSPICION = start;
   const dur = Math.max(durationSec, events.at(-1)?.tSec ?? 0, 10);
   const x = (t: number) => PAD.l + (t / dur) * (W - PAD.l - PAD.r);
   const y = (v: number) => PAD.t + (1 - v / 100) * (H - PAD.t - PAD.b);
@@ -73,7 +68,7 @@ export function Timeline({
           {lines.map((l) => (
             <li
               key={l.name}
-              className="flex items-center gap-1.5 rounded-full bg-[#f6f4ff] px-2.5 py-1 text-xs font-extrabold"
+              className="flex items-center gap-1.5 rounded-full bg-lav-soft px-2.5 py-1 text-xs font-extrabold"
             >
               <span
                 className="h-2.5 w-2.5 rounded-full"
@@ -92,9 +87,9 @@ export function Timeline({
       >
         <defs>
           <linearGradient id="tl-fill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#ff4b4b" stopOpacity="0.25" />
-            <stop offset="60%" stopColor="#ffc800" stopOpacity="0.12" />
-            <stop offset="100%" stopColor="#58cc02" stopOpacity="0.05" />
+            <stop offset="0%" stopColor="var(--red)" stopOpacity="0.25" />
+            <stop offset="60%" stopColor="var(--yellow)" stopOpacity="0.12" />
+            <stop offset="100%" stopColor="var(--green)" stopOpacity="0.05" />
           </linearGradient>
         </defs>
         {[0, 25, 50, 75, 100].map((v) => (
@@ -104,7 +99,7 @@ export function Timeline({
               x2={W - PAD.r}
               y1={y(v)}
               y2={y(v)}
-              stroke={v === 100 ? "#ff4b4b" : "#e3defb"}
+              stroke={v === 100 ? "var(--red)" : "var(--line)"}
               strokeDasharray={v === 100 ? "4 4" : undefined}
             />
             <text
@@ -113,7 +108,7 @@ export function Timeline({
               textAnchor="end"
               fontSize="11"
               fontWeight="700"
-              fill="#6c6a9c"
+              fill="var(--muted)"
               fontFamily="inherit"
             >
               {v}
@@ -128,7 +123,7 @@ export function Timeline({
             textAnchor="middle"
             fontSize="11"
             fontWeight="700"
-            fill="#6c6a9c"
+            fill="var(--muted)"
             fontFamily="inherit"
           >
             {fmtTime(dur * f)}
@@ -153,27 +148,17 @@ export function Timeline({
             <path
               d={d}
               fill="none"
-              stroke="#2b2a5c"
+              stroke="var(--ink)"
               strokeWidth="2.5"
               strokeLinejoin="round"
             />
           </>
         )}
-        {cursorSec != null && (
-          <line
-            x1={x(cursorSec)}
-            x2={x(cursorSec)}
-            y1={PAD.t}
-            y2={H - PAD.b}
-            stroke="#7b6cf6"
-            strokeWidth="2"
-          />
-        )}
         {events.map((e) => {
           const spike = spikeTurns.has(e.turnIndex);
           const r = 4 + Math.min(6, Math.abs(e.delta) / 4);
           const fill =
-            e.delta >= 10 ? "#ff4b4b" : e.delta > 0 ? "#ffc800" : "#58cc02";
+            e.delta >= SPIKE_DELTA ? "var(--red)" : e.delta > 0 ? "var(--yellow)" : "var(--green)";
           return (
             <g
               key={e.turnIndex}
@@ -193,7 +178,7 @@ export function Timeline({
                 cy={markerY(e)}
                 r={r}
                 fill={fill}
-                stroke={selected === e.turnIndex ? "#2b2a5c" : "#ffffff"}
+                stroke={selected === e.turnIndex ? "var(--ink)" : "#fff"}
                 strokeWidth={selected === e.turnIndex ? 3 : 2}
               />
               {spike && (

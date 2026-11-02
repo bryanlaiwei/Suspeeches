@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/Auth";
 import { Avatar } from "@/components/Avatar";
-import { Button, Card, cx, ERROR_NOTE, FictionNote, Input, Label, Shell } from "@/components/ui";
+import { Button, Card, cx, ERROR_NOTE, FictionNote, Input, Label, NOTICE, Shell } from "@/components/ui";
 import { authEnabled, supabase } from "@/lib/client/supabase";
 import { PARTY_CAST, PRESETS } from "@/lib/presets";
 
@@ -71,7 +71,7 @@ export default function LoginPage() {
                 style={{ background: `${who.accent}26` }}
                 title={who.name}
               >
-                <Avatar palette={who} suspicion={sus} getLevel={() => 0} className="w-[85%]" />
+                <Avatar palette={who} suspicion={sus} className="w-[85%]" />
               </div>
             ))}
           </div>
@@ -109,7 +109,7 @@ export default function LoginPage() {
               />
             </label>
             {error && <p className={ERROR_NOTE}>{error}</p>}
-            {notice && <p className="rounded-2xl bg-green-soft px-4 py-3 text-sm font-bold text-[#2f6b00]">{notice}</p>}
+            {notice && <p className={NOTICE}>{notice}</p>}
             <Button type="submit" className="w-full py-3" disabled={busy}>
               {busy ? "One sec…" : mode === "signin" ? "Sign in →" : "Create account →"}
             </Button>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
+import { moodFor, type Mood } from "@/lib/scoring";
 
 export interface AvatarPalette {
   /** Folder under public/avatars holding happy / chill / suspicious art. */
@@ -24,26 +25,32 @@ const ART: Record<string, { ext: "png" | "svg"; skin: string; mouthY: number }> 
 };
 
 const MOODS = ["happy", "chill", "suspicious"] as const;
-/** Same bands as the NPC's tone: warm, curious, then skeptical/cold. */
-const moodIndex = (suspicion: number) => (suspicion < 35 ? 0 : suspicion < 60 ? 1 : 2);
+/** The face follows the NPC's tone (moodFor): warm, curious, then skeptical/cold. */
+const FACE: Record<Mood, number> = { warm: 0, curious: 1, skeptical: 2, cold: 2 };
+const moodIndex = (suspicion: number) => FACE[moodFor(suspicion)];
+const NO_SOUND = () => 0;
 
 /**
  * Illustrated face with three moods (happy / chill / suspicious) that crossfade as suspicion rises.
  * While the NPC speaks a mouth opens with its output volume (no lip-sync); the head tilts with
- * suspicion and bobs while talking. Animation runs in rAF and writes SVG attributes directly so
- * the page does not re-render every frame.
+ * suspicion and sways and bobs while talking. Animation runs in rAF and writes SVG attributes
+ * directly so the page does not re-render every frame. The loop stops once the face has settled and
+ * nobody is speaking, and wakes up when suspicion or `speaking` changes.
  */
 export function Avatar({
   palette,
   suspicion,
-  getLevel,
+  getLevel = NO_SOUND,
+  speaking = false,
   className = "",
 }: {
   palette: AvatarPalette;
   /** 0..100, already smoothed by the caller. */
   suspicion: number;
-  /** Returns the current speaking volume 0..1. */
-  getLevel: () => number;
+  /** Returns the current speaking volume 0..1 (omit for faces that never talk). */
+  getLevel?: () => number;
+  /** This character may be talking: keep polling getLevel. */
+  speaking?: boolean;
   className?: string;
 }) {
   const art = ART[palette.avatar] ?? ART["custom-female"];
@@ -56,17 +63,24 @@ export function Avatar({
   const head = useRef<SVGGElement>(null);
   const sus = useRef(suspicion);
   const level = useRef(getLevel);
+  const talking = useRef(speaking);
+  /** Restarts the animation loop if it has stopped. */
+  const wake = useRef(() => {});
   useEffect(() => {
     sus.current = suspicion;
     level.current = getLevel;
-  }, [suspicion, getLevel]);
+    talking.current = speaking;
+    wake.current();
+  }, [suspicion, getLevel, speaking]);
 
   const [initialMood] = useState(() => moodIndex(suspicion));
   const clip = `av-mouth-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
   const mouthY = art.mouthY;
   useEffect(() => {
     let raf = 0;
+    let running = false;
     let open = 0;
+    let swing = 0;
     const op: number[] = MOODS.map((_, i) => (i === initialMood ? 1 : 0));
     const loop = (now: number) => {
       const s = Math.min(1, Math.max(0, sus.current / 100));
@@ -100,17 +114,29 @@ export function Avatar({
       tongue.current?.setAttribute("cy", String(mouthY - 6 + h));
       tongue.current?.setAttribute("opacity", open > 0.3 ? "1" : "0");
 
-      // Slight head tilt with suspicion, a gentle idle sway, and a speaking bob.
-      const sway = Math.sin(now / 1400) * 0.6;
+      // Slight head tilt with suspicion, a gentle sway while they might be talking, and a speaking bob.
+      swing += ((talking.current ? 1 : 0) - swing) * 0.05;
+      const sway = Math.sin(now / 1400) * 0.6 * swing;
       head.current?.setAttribute(
         "transform",
         `rotate(${(s * -5 + sway).toFixed(2)} 330 600) translate(0 ${(-open * 5).toFixed(2)})`,
       );
 
+      const settled = !talking.current && open < 0.002 && swing < 0.01 && op.every((v, i) => v === (i === target ? 1 : 0));
+      if (settled) running = false;
+      else raf = requestAnimationFrame(loop);
+    };
+    wake.current = () => {
+      if (running) return;
+      running = true;
       raf = requestAnimationFrame(loop);
     };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
+    wake.current();
+    return () => {
+      cancelAnimationFrame(raf);
+      running = false;
+      wake.current = () => {};
+    };
   }, [initialMood, mouthY]);
 
   return (

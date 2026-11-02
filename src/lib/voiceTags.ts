@@ -10,6 +10,8 @@ export interface Segment {
 }
 
 const TAG = /<([A-Za-z][\w-]*)>([\s\S]*?)(?:<\/\1>|$)/g;
+/** The start of a tag still streaming in at the very end, e.g. "<", "</Ma" or "<The". */
+const PARTIAL_TAG = /<\/?(?:[A-Za-z][\w-]*)?$/;
 
 export function parseSegments(text: string): Segment[] {
   const out: Segment[] = [];
@@ -17,11 +19,11 @@ export function parseSegments(text: string): Segment[] {
   for (const m of text.matchAll(TAG)) {
     const before = stripAudioTags(text.slice(last, m.index));
     if (before) out.push({ label: null, text: before });
-    const inner = stripAudioTags(m[2]);
+    const inner = stripAudioTags(m[2].replace(PARTIAL_TAG, ""));
     if (inner) out.push({ label: m[1], text: inner });
     last = (m.index ?? 0) + m[0].length;
   }
-  const rest = stripAudioTags(text.slice(last).replace(/<\/?[A-Za-z][\w-]*>?$/, ""));
+  const rest = stripAudioTags(text.slice(last).replace(PARTIAL_TAG, ""));
   if (rest) out.push({ label: null, text: rest });
   return out;
 }
@@ -31,8 +33,3 @@ export function stripAudioTags(text: string): string {
   return text.replace(/\[[a-z][^\]]{0,40}\]\s*/gi, "").replace(/\s{2,}/g, " ").trim();
 }
 
-export function stripTags(text: string): string {
-  return parseSegments(text)
-    .map((s) => s.text)
-    .join(" ");
-}

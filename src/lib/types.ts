@@ -16,7 +16,10 @@ export interface Turn {
   index: number;
   role: "user" | "agent";
   text: string;
+  /** Seconds since the call connected, by the server's clock. */
   tSec: number;
+  /** Order the browser heard the line in. The transcript is sorted by it (missing on old saved games). */
+  seq?: number;
   /** Which character spoke (group scenes). */
   speaker?: string;
   /** Delivery signals, user turns only. */
@@ -72,17 +75,6 @@ export interface ClaimState {
   status: ClaimStatus;
 }
 
-/** The in-character email a character sends after the scene. */
-export interface Followup {
-  sender: string;
-  subject: string;
-  body: string;
-  goalReached: boolean;
-  /** Set once Agentboxd has accepted it (null when email is off or still sending). */
-  sentTo: string | null;
-  fromAddress: string | null;
-}
-
 export interface Debrief {
   outcome: "survived" | "caught";
   endReason: EndReason;
@@ -103,6 +95,15 @@ export interface Debrief {
   durationSec: number;
 }
 
+/** The prompt files (content hashes) and models a game ran on. */
+export interface GameVersions {
+  judge: { model: string; prompt: string };
+  gap: { model: string; prompt: string };
+  summarizer: { model: string; prompt: string };
+  /** Character sheet + shared rules + mood notes. The voice LLM lives on the ElevenLabs agent. */
+  npc: { prompt: string };
+}
+
 /** Shape the client receives for live updates. */
 export interface PublicSessionState {
   id: string;
@@ -120,13 +121,18 @@ export interface PublicSessionState {
   setup: Setup;
   gap: GapResult;
   scenarioName: string;
+  /** When the call connected (server clock, ms), or when the session was created if it never did. */
   startedAt: number;
   durationSec: number | null;
   debrief: Debrief | null;
-  followup: Followup | null;
-  /** Follow-up email delivery (Agentboxd). */
-  handler: { enabled: boolean; error: string | null };
+  /** The after-the-call job that writes the debrief and saves the game. */
+  job: { status: DebriefJobStatus; error: string | null };
+  /** Optional: games saved before versions were recorded don't have it. */
+  versions?: GameVersions;
 }
+
+/** none: still live · pending: queued · running · done · failed: will be retried. */
+export type DebriefJobStatus = "none" | "pending" | "running" | "done" | "failed";
 
 export interface EventResponse {
   state: PublicSessionState;
@@ -149,14 +155,14 @@ export type VoiceConnection =
       /** WebRTC token (1-on-1 scenes) or WebSocket signed URL (group scenes, which need playback timing). */
       conversationToken?: string;
       signedUrl?: string;
-      dynamicVariables: Record<string, string>;
-      overrides?: NpcOverrides;
+      overrides: NpcOverrides;
     }
   | { mode: "mock"; firstMessage: string; lines: string[] };
 
-/** Only the custom agent uses overrides (voice); everything else goes through dynamic variables. */
+/** ElevenLabs session overrides: the character's prompt and first message, and (custom agent only) the voice. */
 export interface NpcOverrides {
-  tts: { voiceId: string };
+  agent: { prompt: { prompt: string }; firstMessage: string };
+  tts?: { voiceId: string };
 }
 
 export interface CreateSessionResponse {

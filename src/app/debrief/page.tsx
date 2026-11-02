@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { RequireAuth } from "@/components/Auth";
@@ -8,14 +7,14 @@ import { EventDetail, SuspicionBar } from "@/components/SuspicionBar";
 import { Timeline } from "@/components/Timeline";
 import { Transcript, type LiveLine } from "@/components/Transcript";
 import { Avatar } from "@/components/Avatar";
-import { Button, Card, cx, ROW as ROW_BASE, Shell } from "@/components/ui";
+import { BtnLink, Card, CHIP, cx, MOOD_STYLE, ROW as ROW_BASE, Shell } from "@/components/ui";
 import { useAnimatedNumber } from "@/components/useAnimatedNumber";
 import { api } from "@/lib/client/api";
 import { supabase } from "@/lib/client/supabase";
 import { fmtTime } from "@/lib/context";
 import { castFor } from "@/lib/presets";
-import { START_SUSPICION } from "@/lib/scoring";
-import type { PublicSessionState } from "@/lib/types";
+import { moodFor, outcomeLabel, START_SUSPICION } from "@/lib/scoring";
+import type { EndReason, PublicSessionState } from "@/lib/types";
 
 export default function DebriefPage() {
   return (
@@ -28,9 +27,9 @@ export default function DebriefPage() {
 }
 
 const VERDICT: Record<string, { label: string; chip: string }> = {
-  held: { label: "HELD", chip: "bg-green-soft text-[#2f6b00]" },
-  shaky: { label: "SHAKY", chip: "bg-[#fff1c2] text-[#8a5a00]" },
-  blown: { label: "CRACKED", chip: "bg-[#ffd6d6] text-[#a32d2d]" },
+  held: { label: "HELD", chip: CHIP.good },
+  shaky: { label: "SHAKY", chip: CHIP.warn },
+  blown: { label: "CRACKED", chip: CHIP.bad },
   untested: { label: "UNTESTED", chip: "bg-lav text-muted" },
 };
 
@@ -43,6 +42,8 @@ function Debrief() {
   const [state, setState] = useState<PublicSessionState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<number | null>(null);
+  /** The game is still on the server (not a saved copy), so its debrief may still be being written. */
+  const [live, setLive] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -50,19 +51,36 @@ function Debrief() {
     // Live server copy first; fall back to the saved game (survives server restarts).
     api
       .debrief(id)
-      .then((r) => r.state)
+      .then((r) => ({ s: r.state, live: true }))
       .catch(async (e) => {
         const { data } = (await supabase()?.from("games").select("state").eq("id", id).maybeSingle()) ?? { data: null };
-        if (data?.state) return data.state as PublicSessionState;
+        if (data?.state) return { s: data.state as PublicSessionState, live: false };
         throw e;
       })
-      .then((s) => !cancelled && setState(s))
+      .then((r) => {
+        if (cancelled) return;
+        setState(r.s);
+        setLive(r.live);
+      })
       .catch((e) => !cancelled && setError(e instanceof Error ? e.message : String(e)));
     return () => {
       cancelled = true;
     };
   }, [id]);
 
+  // The debrief is written by a job on the server after the call. Check back until it's done; each
+  // check also restarts the job if it failed or its server went away.
+  const jobStatus = state?.job?.status;
+  const polling = live && (!state?.debrief || jobStatus === "pending" || jobStatus === "running");
+  useEffect(() => {
+    if (!id || !polling) return;
+    let tries = 0;
+    const t = setInterval(() => {
+      if (++tries > 90) return clearInterval(t);
+      api.debrief(id).then((r) => setState(r.state), () => {});
+    }, 2000);
+    return () => clearInterval(t);
+  }, [id, polling]);
 
   const d = state?.debrief;
   const duration = d ? Math.max(d.durationSec, state!.events.at(-1)?.tSec ?? 0, 1) : 1;
@@ -95,7 +113,10 @@ function Debrief() {
       <Shell step={3}>
         <div className="flex flex-1 flex-col items-center justify-center gap-3 font-bold text-muted">
           <div className="h-10 w-10 animate-spin rounded-full border-4 border-lav-2 border-t-purple" />
-          The handler is writing up your debrief…
+          Writing up your debrief…
+          {state?.job?.status === "failed" && state.job.error && (
+            <span className="max-w-md text-center text-xs">The last try failed ({state.job.error}). Trying again…</span>
+          )}
         </div>
       </Shell>
     );
@@ -106,7 +127,7 @@ function Debrief() {
   const cast = castFor(state.setup);
   const spikeTurns = new Set(d.spikes.map((s) => s.turnIndex));
 
-  const outcome = caught ? "CAUGHT" : d.endReason === "left" ? "WALKED OUT" : "SURVIVED";
+  const outcome = outcomeLabel(caught, d.endReason);
   const tone = caught ? "var(--red)" : "var(--green)";
   const hero = cast.find((c) => c.name === d.caughtBy) ?? cast[0];
 
@@ -117,10 +138,10 @@ function Debrief() {
         <div className="space-y-6">
           <Card className="text-center">
             <div className="mx-auto w-48">
-              <SuspicionBar value={barValue} events={[]} selected={null} onSelect={() => {}} lastDelta={null} shaking={false} />
+              <SuspicionBar value={barValue} />
             </div>
             <div className="mx-auto mt-3 w-36 overflow-hidden rounded-3xl pt-2" style={{ background: `${hero.accent}26` }}>
-              <Avatar palette={hero} suspicion={barValue} getLevel={() => 0} className="mx-auto w-32" />
+              <Avatar palette={hero} suspicion={barValue} className="mx-auto w-32" />
             </div>
             <div className="mt-3 text-6xl font-black tracking-tight sm:text-7xl" style={{ color: tone }}>
               {outcome}
@@ -133,7 +154,7 @@ function Debrief() {
                     key={name}
                     className={cx(
                       "rounded-full px-3 py-1 text-xs font-extrabold",
-                      v >= 100 ? "bg-[#ffd6d6] text-[#a32d2d]" : v >= 60 ? "bg-[#fff1c2] text-[#8a5a00]" : "bg-green-soft text-[#2f6b00]",
+                      MOOD_STYLE[moodFor(v)].chip,
                     )}
                   >
                     {name} {v}%{d.caughtBy === name && " · caught you"}
@@ -143,13 +164,10 @@ function Debrief() {
             )}
             <p className="mt-2 text-sm font-bold text-muted">
               {state.setup.alias} vs {state.scenarioName} · {fmtTime(d.durationSec)} on the clock ·{" "}
-              {d.endReason === "npc_ended" ? `${state.scenarioName} ended the scene` : d.endReason === "timeout" ? "time ran out" : d.endReason}
+              {endingText(d.endReason, d.caughtBy ?? state.scenarioName)}
             </p>
-            <div
-              className="mt-4 inline-flex flex-col items-center rounded-2xl px-6 py-2"
-              style={{ background: caught ? "#ffd6d6" : "var(--green-soft)" }}
-            >
-              <span className="text-4xl font-black tabular-nums" style={{ color: caught ? "#a32d2d" : "#2f6b00" }}>
+            <div className={cx("mt-4 inline-flex flex-col items-center rounded-2xl px-6 py-2", caught ? CHIP.bad : CHIP.good)}>
+              <span className="text-4xl font-black tabular-nums">
                 {d.score.toLocaleString()} <span className="text-lg">pts</span>
               </span>
               <span className="text-xs font-bold text-muted">
@@ -235,14 +253,12 @@ function Debrief() {
             <Transcript lines={lines} npcName={state.scenarioName} onSelectTurn={setSelected} className="flex-1" />
           </Card>
           <div className="flex flex-col gap-3">
-            <Link href="/setup">
-              <Button className="w-full">Run it back</Button>
-            </Link>
-            <Link href="/account">
-              <Button variant="ghost" className="w-full">
-                Edit profile
-              </Button>
-            </Link>
+            <BtnLink href="/setup" className="w-full">
+              Run it back
+            </BtnLink>
+            <BtnLink href="/account" tone="white" className="w-full">
+              Edit profile
+            </BtnLink>
           </div>
         </div>
       </div>
@@ -255,10 +271,24 @@ function Missing({ message }: { message: string }) {
     <Shell step={3}>
       <Card className="mx-auto mt-10 max-w-md text-center">
         <p className="mb-4 text-sm font-bold text-muted">{message}</p>
-        <Link href="/setup">
-          <Button>Start a new scene</Button>
-        </Link>
+        <BtnLink href="/setup">Start a new scene</BtnLink>
       </Card>
     </Shell>
   );
+}
+
+/** How the call ended, for the line under the headline. */
+function endingText(reason: EndReason, who: string): string {
+  switch (reason) {
+    case "caught":
+      return `${who} caught you`;
+    case "timeout":
+      return "time ran out";
+    case "left":
+      return "you hung up";
+    case "npc_ended":
+      return `${who} hung up`;
+    case "error":
+      return "the call dropped";
+  }
 }

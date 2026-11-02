@@ -117,6 +117,24 @@ export function gapMultiplier(gapScore: number): number {
   return Math.round((1 + clamp(gapScore, 0, 100) / 50) * 100) / 100;
 }
 
+/** A dropped call: the connection failed or the agent hung up on its side (agents have no hang-up tool). */
+export function droppedCall(endReason: string | null | undefined): boolean {
+  return endReason === "error" || endReason === "npc_ended";
+}
+
+/** Only running out the clock is a survive. Hanging up or a dropped call cuts the scene short. */
+export function cutShort(endReason: string | null | undefined): boolean {
+  return endReason === "left" || droppedCall(endReason);
+}
+
+/** Headline result for the debrief and game history. */
+export function outcomeLabel(caught: boolean, endReason: string | null | undefined): string {
+  if (caught) return "CAUGHT";
+  if (endReason === "left") return "WALKED OUT";
+  if (droppedCall(endReason)) return "CALL DROPPED";
+  return "SURVIVED";
+}
+
 export function finalScore(opts: {
   endReason: EndReason;
   caught: boolean;
@@ -129,7 +147,7 @@ export function finalScore(opts: {
   if (opts.caught) {
     // Partial credit for how long you held out.
     survival = Math.round(250 * clamp(opts.durationSec / opts.timeLimitSec, 0, 1));
-  } else if (opts.endReason === "left") {
+  } else if (cutShort(opts.endReason)) {
     survival = 500;
   } else {
     survival = 1000;

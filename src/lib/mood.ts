@@ -1,9 +1,16 @@
 import { fill, loadPrompt } from "./prompts";
 import type { Mood } from "./scoring";
 
-/** Mood notes from prompts/npc/_moods.v1.md, split on "## <mood>" headings. */
-function section(name: string): string {
-  return moodNote(name as Mood);
+/** The headings in prompts/npc/_moods.md. */
+type MoodSection = Mood | `${Mood}_short` | "caught" | "caught_group" | "group";
+
+/** A note from prompts/npc/_moods.md, which is split on "## <name>" headings ("" if missing). */
+export function moodNote(name: MoodSection): string {
+  for (const part of loadPrompt("npc/_moods").body.split(/^## /m).slice(1)) {
+    const nl = part.indexOf("\n");
+    if (part.slice(0, nl).trim() === name) return part.slice(nl + 1).trim();
+  }
+  return "";
 }
 
 /**
@@ -11,16 +18,7 @@ function section(name: string): string {
  * "caught" decision naming who ends it.
  */
 export function groupMoodNote(arg: { moods: Record<string, Mood> } | { caughtBy: string }): string {
-  if ("caughtBy" in arg) return fill(section("caught_group"), { name: arg.caughtBy });
-  const lines = Object.entries(arg.moods).map(([name, mood]) => `- ${name}: ${section(`${mood}_short`)}`);
-  return fill(section("group"), { moods: lines.join("\n") });
-}
-
-export function moodNote(mood: Mood | "caught"): string {
-  const sections = loadPrompt("npc/_moods.v1").body.split(/^## /m).slice(1);
-  for (const section of sections) {
-    const nl = section.indexOf("\n");
-    if (section.slice(0, nl).trim() === mood) return section.slice(nl + 1).trim();
-  }
-  return "";
+  if ("caughtBy" in arg) return fill(moodNote("caught_group"), { name: arg.caughtBy });
+  const lines = Object.entries(arg.moods).map(([name, mood]) => `- ${name}: ${moodNote(`${mood}_short`)}`);
+  return fill(moodNote("group"), { moods: lines.join("\n") });
 }

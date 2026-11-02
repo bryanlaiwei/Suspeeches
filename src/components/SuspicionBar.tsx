@@ -2,45 +2,18 @@
 
 import { fmtTime } from "@/lib/context";
 import type { SuspicionEvent } from "@/lib/types";
-import { cx, suspicionColor } from "./ui";
+import { CHIP, cx, suspicionColor } from "./ui";
 
-/**
- * The bar above the NPC's head. `value` is the smoothed display value; markers sit at the
- * suspicion level each judged turn produced and are clickable.
- */
-export function SuspicionBar({
-  value,
-  events,
-  selected,
-  onSelect,
-  lastDelta,
-  shaking,
-}: {
-  value: number;
-  events: SuspicionEvent[];
-  selected: number | null;
-  onSelect: (turnIndex: number | null) => void;
-  lastDelta: { delta: number; key: number } | null;
-  shaking: boolean;
-}) {
+/** Final suspicion meter on the debrief. `value` is the smoothed display value. */
+export function SuspicionBar({ value }: { value: number }) {
   const v = Math.max(0, Math.min(100, value));
   const color = suspicionColor(v);
   return (
-    <div className={cx("w-full max-w-md", shaking && "animate-sus-shake")}>
+    <div className="w-full max-w-md">
       <div className="mb-1.5 flex items-end justify-between">
         <span className="text-xs font-black tracking-[0.2em] text-muted">SUSPICION</span>
-        <span className="relative text-2xl font-black tabular-nums" style={{ color }}>
+        <span className="text-2xl font-black tabular-nums" style={{ color }}>
           {Math.round(v)}
-          {lastDelta && lastDelta.delta !== 0 && (
-            <span
-              key={lastDelta.key}
-              className="animate-sus-float absolute -right-2 -top-4 translate-x-full text-sm font-black"
-              style={{ color: lastDelta.delta > 0 ? "var(--red)" : "var(--green)" }}
-            >
-              {lastDelta.delta > 0 ? "+" : ""}
-              {lastDelta.delta}
-            </span>
-          )}
         </span>
       </div>
       <div
@@ -60,24 +33,6 @@ export function SuspicionBar({
         />
         {/* caught line */}
         <div className="absolute -top-1 bottom-[-4px] right-0 w-0.5 rounded bg-red" />
-        {events.map((e) => (
-          <button
-            key={e.turnIndex}
-            type="button"
-            onClick={() => onSelect(selected === e.turnIndex ? null : e.turnIndex)}
-            title={`${fmtTime(e.tSec)} ${e.delta > 0 ? "+" : ""}${e.delta}`}
-            className={cx(
-              "absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 border-2 border-white transition hover:scale-150",
-              e.kind === "silence" ? "rotate-45 rounded-[2px]" : "rounded-full",
-              selected === e.turnIndex && "scale-150 ring-2 ring-ink",
-            )}
-            style={{
-              left: `${Math.max(2, Math.min(98, e.suspicion))}%`,
-              background: e.delta >= 10 ? "var(--red)" : e.delta > 0 ? "var(--yellow)" : "var(--green)",
-            }}
-            aria-label={`Turn at ${fmtTime(e.tSec)}, ${e.delta > 0 ? "plus" : "minus"} ${Math.abs(e.delta)}`}
-          />
-        ))}
       </div>
       <div className="mt-1 flex justify-between text-xs font-extrabold uppercase tracking-wider text-muted">
         <span>Clean</span>
@@ -96,7 +51,7 @@ export function EventDetail({ event, onClose }: { event: SuspicionEvent; onClose
         <span
           className={cx(
             "rounded-full px-2.5 py-0.5 text-xs font-black",
-            event.delta > 0 ? "bg-[#ffd6d6] text-[#a32d2d]" : "bg-green-soft text-[#2f6b00]",
+            event.delta > 0 ? CHIP.bad : CHIP.good,
           )}
         >
           {event.delta > 0 ? "+" : ""}
@@ -136,7 +91,7 @@ export function EventDetail({ event, onClose }: { event: SuspicionEvent; onClose
       </ul>
       <div className="mt-3 grid grid-cols-4 gap-2 text-center text-xs font-extrabold uppercase tracking-wide text-muted">
         {(Object.entries(event.categories) as [string, number][]).map(([k, n]) => (
-          <div key={k} className="rounded-xl bg-[#f6f4ff] px-1 py-1.5">
+          <div key={k} className="rounded-xl bg-lav-soft px-1 py-1.5">
             <div className="text-base font-black text-ink">{n}</div>
             {k}
           </div>

@@ -1,3 +1,6 @@
+import { agentIdFor } from "./agents";
+import type { ScenarioId } from "./scenarios";
+
 /** Server-side environment. Read lazily so missing keys only matter when a feature is used. */
 export const env = {
   get anthropicKey() {
@@ -5,9 +8,6 @@ export const env = {
   },
   get elevenLabsKey() {
     return process.env.ELEVENLABS_API_KEY ?? "";
-  },
-  get agentboxdKey() {
-    return process.env.AGENTBOXD_API_KEY ?? "";
   },
   get judgeModel() {
     return process.env.JUDGE_MODEL || "claude-haiku-5-5";
@@ -18,9 +18,9 @@ export const env = {
   get summaryModel() {
     return process.env.SUMMARY_MODEL || "claude-opus-5-5";
   },
-  agentId(scenario: string): string {
-    const key = `ELEVENLABS_AGENT_ID_${scenario.toUpperCase()}`;
-    return process.env[key] ?? "";
+  /** The scenario's ElevenLabs agent (src/lib/agents.json, see agents.ts), or "" if it has none. */
+  agentId(scenario: ScenarioId): string {
+    return agentIdFor(scenario)?.id ?? "";
   },
 };
 

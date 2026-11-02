@@ -2,22 +2,33 @@
   "name": "suspeeches",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": "22"
+  },
   "scripts": {
+    "prompts": "tsx scripts/gen-prompts.ts",
+    "predev": "npm run prompts",
     "dev": "next dev",
+    "prebuild": "npm run prompts",
     "build": "next build",
     "start": "next start -H 0.0.0.0 -p ${PORT:-3000}",
     "lint": "eslint",
-    "test:judge": "tsx --env-file-if-exists=.env.local scripts/test-judge.ts",
+    "pretest": "npm run prompts",
+    "test": "vitest run",
+    "test:live": "JUDGE_LIVE=1 vitest run src/lib/judge.test.ts",
+    "eval:judge": "tsx --env-file-if-exists=.env.local scripts/eval-judge.ts",
     "agents:create": "tsx --env-file-if-exists=.env.local scripts/create-agents.ts",
+    "pretypecheck": "npm run prompts",
     "typecheck": "tsc --noEmit",
     "agents:update": "tsx --env-file-if-exists=.env.local scripts/create-agents.ts --update",
+    "agents:check": "tsx --env-file-if-exists=.env.local scripts/create-agents.ts --check",
+    "predev:mock": "npm run prompts",
     "dev:mock": "MOCK_MODE=1 NEXT_PUBLIC_SUPABASE_URL= next dev"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.3.0",
     "@elevenlabs/react": "^1.20.2",
     "@supabase/supabase-js": "^2.118.0",
-    "agentboxd": "^0.3.0",
     "next": "16.4.3",
     "react": "19.3.0",
     "react-dom": "19.3.0",
@@ -25,13 +36,14 @@
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "^4",
-    "@types/node": "^20",
+    "@types/node": "^22.20.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.4.3",
     "tailwindcss": "^4",
     "tsx": "^4.23.15",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^5.1.0"
   }
 }
