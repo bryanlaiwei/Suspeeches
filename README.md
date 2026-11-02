@@ -134,7 +134,7 @@ npm run eval:judge   # judge regression set, add -- --runs 3 for medians
 
 ## Deploy
 
-The repo deploys to [Railway](https://railway.com) as is: [`railway.json`](railway.json) sets the start command and the `/api/health` health check, and Railway builds the Next.js app on its own.
+The app runs on [Railway](https://railway.com), which builds it from the repo with no config file. The service settings that matter: health check path `/api/health` (timeout 120 s), restart on failure, 30 s draining so a debrief that's still being written can finish during a redeploy, and a region close to your Supabase project.
 
 1. In Supabase, run [`supabase/schema.sql`](supabase/schema.sql), and under Authentication → URL Configuration set the Site URL to your app's URL and add `<your URL>/login` as a redirect URL.
 2. In Railway, create a service from this repo and add the variables from [`.env.example`](.env.example) before the first build (the `NEXT_PUBLIC_*` ones are baked in at build time). In production set `SUPABASE_SECRET_KEY` and `APP_SECRET`. Then generate a public domain: the microphone needs HTTPS.
