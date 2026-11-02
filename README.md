@@ -45,7 +45,7 @@ After each of your turns, a Claude judge reads your real profile, your cover sto
 
 ## How suspicion works
 
-Suspicion starts at 20 for every character. Specific answers lower it, vague ones and dodges raise it, and contradictions or long silences raise it for everyone. Each character judges what they know: in the panel, Maya catches engineering claims and Jordan catches design ones. The bigger the gap between the real you and your cover story, the faster suspicion moves, and the higher your score multiplier.
+Suspicion starts at 20 for every character. Specific answers lower it, vague ones and dodges raise it, and contradictions or long silences raise it for everyone. Each character judges what they know: a CTO catches engineering claims and a designer catches design ones. The bigger the gap between the real you and your cover story, the faster suspicion moves, and the higher your score multiplier.
 
 | Over their head | Suspicion | How they sound |
 |---|---|---|
