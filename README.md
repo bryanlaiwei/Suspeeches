@@ -2,9 +2,9 @@
   <img src="docs/suspeeches-mark.svg" alt="Suspeeches" width="96" />
 </p>
 
-# Suspeeches
+# [Suspeeches](https://suspeeches.vercel.app)
 
-A voice game where you larp your way through social situations: a recruiter screen, a networking mixer, a startup interview panel, or any scene and characters you write yourself. You save your real profile, pick what you'll fake, then talk out loud to AI characters who only know your cover story. A hidden judge knows the truth, and every character's suspicion of you shows over their head.
+Fake it till you make it, out loud! Join a conversation where characters can smell a larp from a mile away. A sus-meter on their head shows how good of a larper you are, and trust me, you don't want it to reach 100%.
 
 <p align="center">
   <img src="https://img.shields.io/badge/TypeScript-3178C6?style=flat&logo=typescript&logoColor=white" alt="TypeScript" />
@@ -20,11 +20,11 @@ A voice game where you larp your way through social situations: a recruiter scre
 </p>
 
 > [!NOTE]
-> Built at **LarpHacks**. Everyone you meet in the game is made up, and so is the job. It's for practice and fun only, so please don't larp on real people.
+> Built within an afternoon at **LarpHacks 2026**. Everyone in the game is made up, and it's for practice and fun only. Please don't larp on real people, unless you can ace the game.
 
 ## The problem
 
-Holding a story together under follow-up questions is a real skill, whether it's an interview, a networking chat or a room full of strangers, and the only place to practice it is the real thing, where a slip costs you. Suspeeches gives you a safe place to try: characters who push back like real people, and a debrief that tells you exactly which answer gave you away.
+Holding a story together under pressure is a real skill, whether it's an interview, a networking chat or a room full of strangers, and the only place to practice is the real thing, where a slip costs you the job, the deal or your dignity. Suspeeches gives you a safe place to get caught: characters who push back like real people, and a debrief that tells you exactly which answer gave you away.
 
 ## How it fits together
 
@@ -112,11 +112,11 @@ Every scenario is one entry in [`src/lib/scenarios.ts`](src/lib/scenarios.ts): i
 
 ### Prompts
 
-Every prompt is a Markdown file in `prompts/`. `npm run prompts` compiles them into `src/lib/prompts.generated.ts` (this also runs before `dev`, `build`, `typecheck` and `test`, and `next dev` recompiles when a file changes). Code renders prompts by name, so a wrong prompt name or a missing `{{variable}}` fails `npm run typecheck` instead of a live request.
+Every prompt is a Markdown file in `prompts/`, compiled into `src/lib/prompts.generated.ts` before `dev`, `build`, `typecheck` and `test`. Code renders prompts by name, so a wrong name or a missing `{{variable}}` fails `npm run typecheck` instead of a live request.
 
-The character prompts live only in the repo. The app builds each character's prompt and first message for every call and sends them to ElevenLabs as overrides, so editing a file in `prompts/npc` goes live on the next deploy. The agents only hold the voice, LLM and settings from each file's frontmatter: after changing those, run `npm run agents:update`. `npm run agents:check` tells you if any live agent is out of date.
+The character prompts live only in the repo. On every call the app sends each character's prompt and first message to ElevenLabs as overrides, so editing `prompts/npc` goes live on the next deploy. The agents only hold the voice, LLM and settings from each file's frontmatter: after changing those, run `npm run agents:update`, then `npm run agents:check`.
 
-Each saved game records the hash of every prompt and the model it ran on (`judge_prompt`, `judge_model` and `npc_prompt` in the `games` table). After changing `prompts/judge.md` or `JUDGE_MODEL`, run `npm run eval:judge` to check the judge still scores a fixed set of example answers in the expected ranges (`src/lib/__fixtures__/judge-evals.json`).
+Each saved game records the hash of every prompt and the model it ran on. After changing `prompts/judge.md` or `JUDGE_MODEL`, run `npm run eval:judge` to check the judge still scores a fixed set of example answers in range.
 
 ```bash
 npm run typecheck
@@ -131,15 +131,6 @@ npm run eval:judge   # judge regression set, add -- --runs 3 for medians
 
 > [!IMPORTANT]
 > Browsers only allow the microphone over HTTPS or on localhost. Without `SUPABASE_SECRET_KEY`, live sessions are kept in memory, so run a single instance. With it, they live in the `game_sessions` table from [`supabase/schema.sql`](supabase/schema.sql): they survive restarts and deploys, and any number of instances works.
-
-## Deploy
-
-The app runs on [Vercel](https://vercel.com), which builds it from the repo with no config file and deploys every push to `main`. Its functions run in Washington, D.C. (`iad1`, the default), next to a Supabase project in `us-east-1`; if your Supabase project is elsewhere, change the function region under Project Settings → Functions. `SUPABASE_SECRET_KEY` is required here: serverless instances don't share memory, so live sessions have to be in the `game_sessions` table.
-
-1. In Supabase, run [`supabase/schema.sql`](supabase/schema.sql), and under Authentication → URL Configuration set the Site URL to your app's URL and add `<your URL>/login` as a redirect URL.
-2. In Vercel, import this repo and add the variables from [`.env.example`](.env.example) before the first build (the `NEXT_PUBLIC_*` ones are baked in at build time). In production set `SUPABASE_SECRET_KEY` and `APP_SECRET`.
-3. Run `npm run agents:update` so the agents accept the app's prompt overrides, then `npm run agents:check`.
-4. Open `/api/health` and check that everything you configured is `true`.
 
 ## Scope and limitations
 
