@@ -4,7 +4,7 @@
 
 # [Suspeeches](https://suspeeches.vercel.app)
 
-Fake it till you make it, out loud! Join a conversation where characters can smell a larp from a mile away. A sus-meter on their head shows how suspicious you are, and trust me, you don't want it to reach 100%.
+Fake it till you make it, out loud! Join voice calls where characters can smell a larp from a mile away. A sus-meter on their head shows how suspicious you are, and trust me, you don't want it to reach 100%.
 
 <p align="center">
   <img src="https://img.shields.io/badge/TypeScript-3178C6?style=flat&logo=typescript&logoColor=white" alt="TypeScript" />
@@ -24,7 +24,7 @@ Fake it till you make it, out loud! Join a conversation where characters can sme
 
 ## The problem
 
-Holding a story together under pressure is a real skill, whether it's an interview, a networking chat or a room full of strangers, and the only place to practice is the real thing, where a slip costs you the job, the deal or your dignity. Suspeeches gives you a safe place to get caught: characters who push back like real people, and a debrief that tells you exactly which answer gave you away.
+Holding a story together under pressure is a real skill, whether it's an interview, a networking chat or a room full of strangers, and the only place to practice is the real thing, where a slip costs you the job, the deal or your dignity. Suspeeches gives you a safe place to get caught: you larp in a voice call, characters push back like real people, and you read the debrief that explains which answer gave you away.
 
 ## How it fits together
 
