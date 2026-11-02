@@ -102,7 +102,7 @@ npm run dev             # http://localhost:3000
 
 The agent IDs are committed in [`src/lib/agents.json`](src/lib/agents.json). They aren't secret: the agents are private, so starting a conversation needs a token minted with your API key. There's nothing to paste. If you use your own ElevenLabs account, `npm run agents:create -- --force` makes new agents and rewrites the file.
 
-### Adding a scenario
+### Adding a pre-set scenario
 
 Every scenario is one entry in [`src/lib/scenarios.ts`](src/lib/scenarios.ts): its label, character, blurb, goal, avatar and agent name. The zod schema, setup screen, health check and agent script all read it. To add one:
 
