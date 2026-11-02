@@ -16,7 +16,7 @@ A voice game where you larp your way through social situations: a recruiter scre
   <img src="https://img.shields.io/badge/Claude_API-D97757?style=flat&logo=anthropic&logoColor=white" alt="Claude API" />
   <img src="https://img.shields.io/badge/Supabase-3ECF8E?style=flat&logo=supabase&logoColor=white" alt="Supabase" />
   <img src="https://img.shields.io/badge/PostgreSQL-4169E1?style=flat&logo=postgresql&logoColor=white" alt="PostgreSQL" />
-  <img src="https://img.shields.io/badge/Railway-0B0D0E?style=flat&logo=railway&logoColor=white" alt="Railway" />
+  <img src="https://img.shields.io/badge/Vercel-000000?style=flat&logo=vercel&logoColor=white" alt="Vercel" />
 </p>
 
 > [!NOTE]
@@ -134,10 +134,10 @@ npm run eval:judge   # judge regression set, add -- --runs 3 for medians
 
 ## Deploy
 
-The app runs on [Railway](https://railway.com), which builds it from the repo with no config file. The service settings that matter: health check path `/api/health` (timeout 120 s), restart on failure, 30 s draining so a debrief that's still being written can finish during a redeploy, and a region close to your Supabase project.
+The app runs on [Vercel](https://vercel.com), which builds it from the repo with no config file and deploys every push to `main`. Its functions run in Washington, D.C. (`iad1`, the default), next to a Supabase project in `us-east-1`; if your Supabase project is elsewhere, change the function region under Project Settings → Functions. `SUPABASE_SECRET_KEY` is required here: serverless instances don't share memory, so live sessions have to be in the `game_sessions` table.
 
 1. In Supabase, run [`supabase/schema.sql`](supabase/schema.sql), and under Authentication → URL Configuration set the Site URL to your app's URL and add `<your URL>/login` as a redirect URL.
-2. In Railway, create a service from this repo and add the variables from [`.env.example`](.env.example) before the first build (the `NEXT_PUBLIC_*` ones are baked in at build time). In production set `SUPABASE_SECRET_KEY` and `APP_SECRET`. Then generate a public domain: the microphone needs HTTPS.
+2. In Vercel, import this repo and add the variables from [`.env.example`](.env.example) before the first build (the `NEXT_PUBLIC_*` ones are baked in at build time). In production set `SUPABASE_SECRET_KEY` and `APP_SECRET`.
 3. Run `npm run agents:update` so the agents accept the app's prompt overrides, then `npm run agents:check`.
 4. Open `/api/health` and check that everything you configured is `true`.
 
