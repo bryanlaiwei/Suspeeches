@@ -52,6 +52,7 @@ export class MemoryStore implements SessionStore {
 }
 
 const TABLE = "game_sessions";
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** The columns besides `state` are copies kept for queries (whose session, which jobs are stuck). */
 function row(s: Session, version: number) {
@@ -79,6 +80,8 @@ export class SupabaseStore implements SessionStore {
   }
 
   async get(id: string) {
+    // Session IDs are UUIDs; anything else can't exist, and Postgres would reject it with an error.
+    if (!UUID.test(id)) return null;
     const { data, error } = await this.db.from(TABLE).select("state, version").eq("id", id).maybeSingle();
     if (error) throw new Error(`Couldn't load the session: ${error.message}`);
     return data ? { session: data.state as Session, version: data.version as number } : null;

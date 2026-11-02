@@ -69,7 +69,11 @@ export const anthropicCaller: RawCaller = async (req) => {
       ...toMessageParams(req),
       output_config: { format: zodOutputFormat(req.schema), effort: req.effort },
     },
-    { timeout: req.timeoutMs, maxRetries: req.maxRetries },
+    // Only pass the overrides that are set: the SDK rejects `timeout: undefined` ("timeout must be an integer").
+    {
+      ...(req.timeoutMs !== undefined && { timeout: req.timeoutMs }),
+      ...(req.maxRetries !== undefined && { maxRetries: req.maxRetries }),
+    },
   );
   if (process.env.LLM_DEBUG === "1") {
     const u = res.usage;
