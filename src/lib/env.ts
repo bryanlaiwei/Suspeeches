@@ -16,7 +16,7 @@ export const env = {
     return process.env.GAP_MODEL || "claude-haiku-5-5";
   },
   get summaryModel() {
-    return process.env.SUMMARY_MODEL || "claude-opus-5-5";
+    return process.env.SUMMARY_MODEL || "claude-sonnet-5-5";
   },
   /** The scenario's ElevenLabs agent (src/lib/agents.json, see agents.ts), or "" if it has none. */
   agentId(scenario: ScenarioId): string {
