@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/Auth";
 import { Avatar } from "@/components/Avatar";
-import { Button, Card, cx, ERROR_NOTE, FictionNote, Input, Label, NOTICE, Shell } from "@/components/ui";
+import { Button, Card, cx, ERROR_NOTE, FictionNote, Input, Label, Shell } from "@/components/ui";
 import { authEnabled, supabase } from "@/lib/client/supabase";
 import { PARTY_CAST, PRESETS } from "@/lib/presets";
 
@@ -24,7 +24,6 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
     if (!authEnabled || (!loading && user)) router.replace("/");
@@ -36,18 +35,12 @@ export default function LoginPage() {
     if (!sb) return;
     setBusy(true);
     setError(null);
-    setNotice(null);
     const res =
       mode === "signin"
         ? await sb.auth.signInWithPassword({ email, password })
-        : await sb.auth.signUp({ email, password, options: { emailRedirectTo: `${window.location.origin}/login` } });
+        : await sb.auth.signUp({ email, password });
     setBusy(false);
     if (res.error) return setError(res.error.message);
-    if (mode === "signup" && !res.data.session) {
-      setNotice("Check your inbox to confirm your email, then sign in.");
-      setMode("signin");
-      return;
-    }
     router.replace("/");
   }
 
@@ -109,7 +102,6 @@ export default function LoginPage() {
               />
             </label>
             {error && <p className={ERROR_NOTE}>{error}</p>}
-            {notice && <p className={NOTICE}>{notice}</p>}
             <Button type="submit" className="w-full py-3" disabled={busy}>
               {busy ? "One sec…" : mode === "signin" ? "Sign in →" : "Create account →"}
             </Button>
