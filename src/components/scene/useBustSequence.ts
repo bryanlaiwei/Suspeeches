@@ -13,6 +13,10 @@ interface Conversation {
  * Caught: whatever the NPC was saying is muted, it gets a "you've decided" note plus a nudge to
  * answer now, says a funny closing line, and we hang up once it has gone quiet for 1.5 s (20 s cap
  * if no goodbye ever comes, 15 s once it has started).
+ *
+ * The sound comes back when the goodbye response starts (its first streamed text part, which
+ * arrives with its first audio), not when its full text arrives: over WebRTC that can be ~3 s into
+ * the line, which cut off the first half. The interrupted line's text can also land after the bust.
  */
 export function useBustSequence(conversation: Conversation, hangUp: () => void) {
   const [busted, setBusted] = useState(false);
@@ -44,8 +48,8 @@ export function useBustSequence(conversation: Conversation, hangUp: () => void) 
         hangUp();
       }
     },
-    /** An agent line arrived: the first one after the nudge is the goodbye, so turn the sound back on. */
-    onAgentLine() {
+    /** An agent response started: the first one after the nudge is the goodbye, so turn the sound back on. */
+    onResponseStart() {
       const b = ref.current;
       if (!b || b.goodbyeStarted) return;
       b.goodbyeStarted = true;

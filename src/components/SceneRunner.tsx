@@ -101,7 +101,10 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
     onVadScore: ({ vadScore }) => {
       if (vadScore > VAD_SPEECH) markUserSpeaking();
     },
-    onAgentChatResponsePart: (part) => speakers.onResponsePart(part),
+    onAgentChatResponsePart: (part) => {
+      if (part.type === "start") goodbye.onResponseStart();
+      speakers.onResponsePart(part);
+    },
     onAudioAlignmentPlayback: ({ alignment }) => speakers.onAlignment(alignment),
     onInterruption: () => speakers.onInterruption(),
   });
@@ -158,7 +161,6 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
   function onAgentLine(text: string) {
     if (!sessionId.current || endingRef.current) return;
     const tSec = elapsed();
-    goodbye.onAgentLine();
     // One transcript line per character (group responses contain several voice tags).
     const id = sessionId.current;
     for (const seg of speakers.segmentsOf(text)) {
