@@ -25,6 +25,11 @@ const ART: Record<string, { ext: "png" | "svg"; skin: string; mouthY: number }> 
 };
 
 const MOODS = ["happy", "chill", "suspicious"] as const;
+/**
+ * Call art carries the body on this far below the 660-unit frame (scripts/gen-call-avatars.ts),
+ * drawn past the bottom of the SVG and hidden by the tile, so a tilt or bob never shows its end.
+ */
+const CALL_ART_BELOW = 150;
 /** The face follows the NPC's tone (moodFor): warm, curious, then skeptical/cold. */
 const FACE: Record<Mood, number> = { warm: 0, curious: 1, skeptical: 2, cold: 2 };
 const moodIndex = (suspicion: number) => FACE[moodFor(suspicion)];
@@ -144,7 +149,14 @@ export function Avatar({
 
   return (
     // Given a box that isn't square (a call tile), the art fits inside it and stands on its bottom edge.
-    <svg viewBox="0 0 660 660" preserveAspectRatio="xMidYMax meet" className={className} role="img" aria-label="NPC avatar">
+    <svg
+      viewBox="0 0 660 660"
+      preserveAspectRatio="xMidYMax meet"
+      overflow={onCall ? "visible" : undefined}
+      className={className}
+      role="img"
+      aria-label="NPC avatar"
+    >
       <defs>
         <clipPath id={clip}>
           <path ref={mouthClip} d="" />
@@ -159,7 +171,7 @@ export function Avatar({
             }}
             href={onCall ? `/avatars/${id}/${m}-call.png` : `/avatars/${id}/${m}.${art.ext}`}
             width="660"
-            height="660"
+            height={onCall ? 660 + CALL_ART_BELOW : 660}
             opacity={i === initialMood ? 1 : 0}
           />
         ))}

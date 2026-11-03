@@ -3,7 +3,8 @@
  *
  * The art is drawn as a round avatar (a flat background circle, shoulders cut off by its edge).
  * On a call tile a person should sit in the frame like on a real video call, so this removes the
- * background circle and continues the shoulders down to the bottom corners. The round originals
+ * background circle, continues the shoulders down to the bottom corners, and carries the body on
+ * below the frame so it stays on the tile's bottom edge however the head moves. The round originals
  * stay as they are for setup, briefing and the debrief.
  *
  *   npx tsx scripts/gen-call-avatars.ts   # after adding or changing any art in public/avatars
@@ -23,6 +24,12 @@ const BG_TOLERANCE = 28;
 const FRINGE_TOLERANCE = 60;
 /** Shoulders continue outward this many px per px down, from where the circle cut them. */
 const SHOULDER_SLOPE = 1.5;
+/**
+ * The body carries on this far (in 660-unit art) below the frame, hidden under the tile's bottom
+ * edge, so tilting or bobbing never lifts it into view. Must match CALL_ART_BELOW in Avatar.tsx.
+ */
+const BELOW = 150;
+const BELOW_PX = (BELOW * N) / 660;
 
 type Rgba = Buffer;
 const at = (x: number, y: number) => (y * N + x) * 4;
@@ -110,8 +117,15 @@ async function main() {
       const px = await input.resize(N, N, { kernel: "lanczos3" }).ensureAlpha().raw().toBuffer();
       removeBackground(px);
       extendShoulders(px);
+      // Repeat the bottom row of clothing downward (see BELOW).
+      const tall = Buffer.alloc(N * (N + BELOW_PX) * 4);
+      px.copy(tall);
+      const last = px.subarray(at(0, N - 1), at(0, N));
+      for (let y = N; y < N + BELOW_PX; y++) last.copy(tall, y * N * 4);
       const out = path.join(ROOT, id, `${mood}-call.png`);
-      const info = await sharp(px, { raw: { width: N, height: N, channels: 4 } }).png({ palette: true, quality: 95, effort: 10 }).toFile(out);
+      const info = await sharp(tall, { raw: { width: N, height: N + BELOW_PX, channels: 4 } })
+        .png({ palette: true, quality: 95, effort: 10 })
+        .toFile(out);
       console.log(`${path.relative(ROOT, out)}  ${Math.round(info.size / 1024)} KB`);
     }
   }
