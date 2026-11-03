@@ -140,7 +140,8 @@ export function Avatar({
   }, [initialMood, mouthY]);
 
   return (
-    <svg viewBox="0 0 660 660" className={className} role="img" aria-label="NPC avatar">
+    // Given a box that isn't square (a call tile), the art fits inside it and stands on its bottom edge.
+    <svg viewBox="0 0 660 660" preserveAspectRatio="xMidYMax meet" className={className} role="img" aria-label="NPC avatar">
       <defs>
         <clipPath id={clip}>
           <path ref={mouthClip} d="" />

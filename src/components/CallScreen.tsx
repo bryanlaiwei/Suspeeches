@@ -15,10 +15,12 @@ const TILE = "relative flex min-h-0 flex-col items-center overflow-hidden rounde
 const TILE_IDLE = "border-lav-2 shadow-[0_5px_0_var(--lav-2)]";
 const TILE_TALKING = "border-green shadow-[0_5px_0_var(--green-dark)]";
 
-function NameTag({ children }: { children: React.ReactNode }) {
+/** Bottom-left label; on a narrow tile the text is cut off with an ellipsis instead of overflowing. */
+function NameTag({ icon, children }: { icon?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <span className="absolute bottom-3 left-3 z-10 flex items-center gap-1.5 rounded-xl bg-white px-3 py-1 text-sm font-extrabold text-ink shadow-[0_2px_0_var(--lav-2)]">
-      {children}
+    <span className="absolute bottom-3 left-3 z-10 flex max-w-[calc(100%-1.5rem)] items-center gap-1.5 rounded-xl bg-white px-3 py-1 text-sm font-extrabold text-ink shadow-[0_2px_0_var(--lav-2)]">
+      {icon}
+      <span className="min-w-0 truncate">{children}</span>
     </span>
   );
 }
@@ -82,9 +84,9 @@ function PersonTile({
   const v = Math.max(0, Math.min(100, Math.round(shown)));
   return (
     <div className={cx(TILE, talking ? TILE_TALKING : TILE_IDLE)} style={{ background: `${member.accent}26` }}>
-      <HeadStatus value={v} pop={pop} barClass={big ? "w-40" : "w-28"} className="z-10 pt-3" />
+      <HeadStatus value={v} pop={pop} barClass={big ? "w-28 sm:w-40" : "w-14 sm:w-28"} className="z-10 pt-3" />
       <div className="relative min-h-0 w-full flex-1">
-        <Avatar palette={member} suspicion={shown} getLevel={getLevel} speaking={talking} className="absolute inset-x-0 bottom-0 mx-auto h-full w-auto" />
+        <Avatar palette={member} suspicion={shown} getLevel={getLevel} speaking={talking} className="absolute inset-0 h-full w-full" />
       </div>
       <NameTag>
         {member.name} <span className="font-bold text-muted">· {member.title}</span>
@@ -124,8 +126,7 @@ function YouTile({ you, talking, muted }: { you: string; talking: boolean; muted
       >
         {initials}
       </span>
-      <NameTag>
-        <MicIcon off={muted} className={cx("h-4 w-4", muted ? "text-red" : "text-green")} />
+      <NameTag icon={<MicIcon off={muted} className={cx("h-4 w-4 shrink-0", muted ? "text-red" : "text-green")} />}>
         You <span className="font-bold text-muted">· {you}</span>
       </NameTag>
     </div>
@@ -197,7 +198,12 @@ export function CallStage({
         <div
           className={cx(
             "grid min-h-[420px] flex-1 gap-3",
-            group ? (cast.length === 2 ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-1 sm:grid-cols-2 sm:grid-rows-2") : "grid-cols-1 sm:grid-cols-[2fr_1fr]",
+            // On a phone: four tiles stay a 2×2 grid, and your own tile takes less room than the character's.
+            group
+              ? cast.length === 2
+                ? "grid-cols-1 grid-rows-[3fr_3fr_2fr] sm:grid-cols-3 sm:grid-rows-1"
+                : "grid-cols-2 grid-rows-2"
+              : "grid-cols-1 grid-rows-[2fr_1fr] sm:grid-cols-[2fr_1fr] sm:grid-rows-1",
             shaking && "animate-sus-shake",
           )}
         >
