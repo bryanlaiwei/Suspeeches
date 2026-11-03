@@ -4,7 +4,7 @@ import { gapBinding, verifyGap } from "@/lib/gapToken";
 import { errorResponse, parseBody } from "@/lib/http";
 import { CreateSessionBodySchema } from "@/lib/schemas";
 import { createSession, toPublic } from "@/lib/sessions";
-import { requireUser, trustedProfile } from "@/lib/supabase-server";
+import { requireUser, trustedProfile } from "@/lib/supabaseServer";
 import type { CreateSessionResponse } from "@/lib/types";
 
 /**

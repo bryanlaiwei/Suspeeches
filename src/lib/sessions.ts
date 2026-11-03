@@ -18,7 +18,7 @@ import {
   type ScoreHistory,
 } from "./scoring";
 import { sessionStore, type StoredSession } from "./sessionStore";
-import type { SessionOwner } from "./supabase-server";
+import type { SessionOwner } from "./supabaseServer";
 import { deliverySignals } from "./timing";
 import { gameVersions } from "./versions";
 import type {

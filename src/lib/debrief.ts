@@ -1,7 +1,7 @@
 import { after } from "next/server";
 import { toPublic, unchanged, updateSession, type Session } from "./sessions";
 import { buildDebrief } from "./summarize";
-import { saveGame } from "./supabase-server";
+import { saveGame } from "./supabaseServer";
 
 /**
  * After the call: write the debrief, then save the game to the player's history. It runs as a job

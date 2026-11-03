@@ -81,7 +81,7 @@ export const SCENARIOS = {
     agentName: "Suspeeches - Startup interview (Maya, Theo, Jordan)",
     cast: [
       { name: "Maya", title: "CTO", label: "Maya", expertise: "software engineering, system design, infrastructure, engineering teams and hiring", avatar: "maya", accent: "#ff9600" },
-      { name: "Theo", title: "CEO & co-founder", label: "Theo", expertise: "business impact, revenue and growth metrics, fundraising, company culture, go-to-market", avatar: "sam", accent: "#a66bff" },
+      { name: "Theo", title: "CEO & co-founder", label: "Theo", expertise: "business impact, revenue and growth metrics, fundraising, company culture, go-to-market", avatar: "theo", accent: "#a66bff" },
       { name: "Jordan", title: "Head of design", label: "Jordan", expertise: "product and visual design, UX research, design systems, design tools, design-engineering handoff", avatar: "jordan", accent: "#e64980" },
     ],
   },

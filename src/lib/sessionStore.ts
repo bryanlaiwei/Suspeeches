@@ -1,5 +1,5 @@
 import type { Session } from "./sessions";
-import { adminClient } from "./supabase-server";
+import { adminClient } from "./supabaseServer";
 
 /**
  * Where live sessions are kept between requests.

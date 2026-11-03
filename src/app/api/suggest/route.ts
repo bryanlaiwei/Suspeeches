@@ -1,6 +1,6 @@
 import { suggestClaims } from "@/lib/gap";
 import { errorResponse, parseBody } from "@/lib/http";
-import { requireUser, trustedProfile } from "@/lib/supabase-server";
+import { requireUser, trustedProfile } from "@/lib/supabaseServer";
 import { SuggestBodySchema } from "@/lib/schemas";
 
 export async function POST(req: Request) {

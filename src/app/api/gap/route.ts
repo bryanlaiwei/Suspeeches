@@ -1,7 +1,7 @@
 import { estimateGap } from "@/lib/gap";
 import { gapBinding, signGap } from "@/lib/gapToken";
 import { errorResponse, parseBody } from "@/lib/http";
-import { requireUser, trustedProfile } from "@/lib/supabase-server";
+import { requireUser, trustedProfile } from "@/lib/supabaseServer";
 import { GapBodySchema } from "@/lib/schemas";
 
 /** Estimate the larp gap, signed so POST /api/session can trust it without asking the model again. */

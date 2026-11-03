@@ -12,7 +12,7 @@ export interface AvatarPalette {
 /** Per-character art: file type, skin tone and mouth centre (in the 660px art) for the talking mouth. */
 const ART: Record<string, { ext: "png" | "svg"; skin: string; mouthY: number }> = {
   dana: { ext: "png", skin: "#bb774d", mouthY: 428 },
-  sam: { ext: "png", skin: "#e8b18c", mouthY: 414 },
+  theo: { ext: "png", skin: "#e8b18c", mouthY: 414 },
   "custom-female": { ext: "png", skin: "#f3c5a2", mouthY: 430 },
   "custom-male": { ext: "png", skin: "#f3c5a2", mouthY: 428 },
   priya: { ext: "svg", skin: "#a8714f", mouthY: 428 },

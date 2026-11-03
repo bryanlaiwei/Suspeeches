@@ -11,7 +11,7 @@
     "dev": "next dev",
     "prebuild": "npm run prompts",
     "build": "next build",
-    "start": "next start -H 0.0.0.0 -p ${PORT:-3000}",
+    "start": "next start",
     "lint": "eslint",
     "pretest": "npm run prompts",
     "test": "vitest run",

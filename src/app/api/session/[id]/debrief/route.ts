@@ -1,6 +1,6 @@
 import { jobDue, scheduleDebrief } from "@/lib/debrief";
 import { loadSession, settleExpired, toPublic } from "@/lib/sessions";
-import { requireOwner } from "@/lib/supabase-server";
+import { requireOwner } from "@/lib/supabaseServer";
 
 /**
  * The game's state for the debrief page, which polls this until the debrief (and email) are done.

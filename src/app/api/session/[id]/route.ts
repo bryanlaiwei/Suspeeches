@@ -1,5 +1,5 @@
 import { loadSession, toPublic } from "@/lib/sessions";
-import { requireOwner } from "@/lib/supabase-server";
+import { requireOwner } from "@/lib/supabaseServer";
 
 export async function GET(req: Request, ctx: RouteContext<"/api/session/[id]">) {
   const { id } = await ctx.params;

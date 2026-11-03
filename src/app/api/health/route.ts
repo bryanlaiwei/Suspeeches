@@ -3,7 +3,7 @@ import { env, llmMock, voiceMock } from "@/lib/env";
 import { agentIdFor } from "@/lib/agents";
 import { SCENARIO_IDS } from "@/lib/scenarios";
 import { sessionStore } from "@/lib/sessionStore";
-import { adminClient, authEnabled } from "@/lib/supabase-server";
+import { adminClient, authEnabled } from "@/lib/supabaseServer";
 
 export async function GET() {
   await connection(); // always evaluate at request time

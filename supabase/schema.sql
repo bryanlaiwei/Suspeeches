@@ -37,7 +37,7 @@ create policy "profiles: update own" on public.profiles
   using ((select auth.uid()) = user_id)
   with check ((select auth.uid()) = user_id);
 
--- ---------- games: one row per finished scene (saveGame in src/lib/supabase-server.ts) ----------
+-- ---------- games: one row per finished scene (saveGame in src/lib/supabaseServer.ts) ----------
 
 create table if not exists public.games (
   -- The session id, so the debrief link /debrief?id=<id> works after the live session is gone.
