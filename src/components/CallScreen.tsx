@@ -85,8 +85,17 @@ function PersonTile({
   return (
     <div className={cx(TILE, talking ? TILE_TALKING : TILE_IDLE)} style={{ background: `${member.accent}26` }}>
       <HeadStatus value={v} pop={pop} barClass={big ? "w-28 sm:w-40" : "w-14 sm:w-28"} className="z-10 pt-3" />
-      <div className="relative min-h-0 w-full flex-1">
-        <Avatar palette={member} suspicion={shown} getLevel={getLevel} speaking={talking} className="absolute inset-0 h-full w-full" />
+      {/* Like a person on a video call: as tall as the tile, centred, shoulders cropped by a narrow
+          tile, but never so tall (150% of the width) that the head would be cropped. */}
+      <div className="@container relative min-h-0 w-full flex-1">
+        <Avatar
+          palette={member}
+          suspicion={shown}
+          getLevel={getLevel}
+          speaking={talking}
+          onCall
+          className="absolute bottom-0 left-1/2 h-[min(100%,150cqw)] w-auto max-w-none -translate-x-1/2"
+        />
       </div>
       <NameTag>
         {member.name} <span className="font-bold text-muted">· {member.title}</span>

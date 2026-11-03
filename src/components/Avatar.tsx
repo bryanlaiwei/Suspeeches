@@ -42,6 +42,7 @@ export function Avatar({
   suspicion,
   getLevel = NO_SOUND,
   speaking = false,
+  onCall = false,
   className = "",
 }: {
   palette: AvatarPalette;
@@ -51,6 +52,8 @@ export function Avatar({
   getLevel?: () => number;
   /** This character may be talking: keep polling getLevel. */
   speaking?: boolean;
+  /** On a call tile: no background circle, shoulders down to the bottom edge (scripts/gen-call-avatars.ts). */
+  onCall?: boolean;
   className?: string;
 }) {
   const art = ART[palette.avatar] ?? ART["custom-female"];
@@ -154,7 +157,7 @@ export function Avatar({
             ref={(el) => {
               layers.current[i] = el;
             }}
-            href={`/avatars/${id}/${m}.${art.ext}`}
+            href={onCall ? `/avatars/${id}/${m}-call.png` : `/avatars/${id}/${m}.${art.ext}`}
             width="660"
             height="660"
             opacity={i === initialMood ? 1 : 0}
