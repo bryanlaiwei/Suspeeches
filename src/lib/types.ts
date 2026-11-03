@@ -142,6 +142,19 @@ export interface EventResponse {
   npcMood?: string | null;
 }
 
+/** A judged turn's score, sent ahead of the judge's notes. The event's reasons are still empty. */
+export interface ScoreResponse {
+  state: PublicSessionState;
+  event: SuspicionEvent;
+  npcMood: string | null;
+}
+
+/**
+ * The event route's response body: one JSON object per line. A judged user line gets a `score`
+ * line as soon as the judge has scored it, then every request ends with `done` (or `error`).
+ */
+export type EventStreamLine = { score: ScoreResponse } | { done: EventResponse } | { error: string };
+
 export interface SilenceResponse {
   state: PublicSessionState;
   /** Null when the report was early, duplicate, or the scene is over. */

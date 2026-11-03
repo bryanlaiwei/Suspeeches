@@ -39,6 +39,8 @@ export interface StructuredRequest<S extends z.ZodType> {
   /** Per-request overrides of the client defaults (45 s timeout, 2 SDK retries). */
   timeoutMs?: number;
   maxRetries?: number;
+  /** Stream the reply and call this with the text so far after each chunk. */
+  onText?: (soFar: string) => void;
 }
 
 /** One model call returning raw text. Swappable in tests. */
@@ -62,23 +64,34 @@ export function toMessageParams(req: StructuredRequest<z.ZodType>): Pick<Anthrop
 
 export const anthropicCaller: RawCaller = async (req) => {
   const started = Date.now();
-  const res = await anthropic().messages.create(
-    {
-      model: req.model,
-      max_tokens: req.maxTokens,
-      ...toMessageParams(req),
-      output_config: { format: zodOutputFormat(req.schema), effort: req.effort },
-    },
-    // Only pass the overrides that are set: the SDK rejects `timeout: undefined` ("timeout must be an integer").
-    {
-      ...(req.timeoutMs !== undefined && { timeout: req.timeoutMs }),
-      ...(req.maxRetries !== undefined && { maxRetries: req.maxRetries }),
-    },
-  );
+  const body = {
+    model: req.model,
+    max_tokens: req.maxTokens,
+    ...toMessageParams(req),
+    output_config: { format: zodOutputFormat(req.schema), effort: req.effort },
+  };
+  // Only pass the overrides that are set: the SDK rejects `timeout: undefined` ("timeout must be an integer").
+  const options = {
+    ...(req.timeoutMs !== undefined && { timeout: req.timeoutMs }),
+    ...(req.maxRetries !== undefined && { maxRetries: req.maxRetries }),
+  };
+  let res: Anthropic.Message;
+  let firstTextMs: number | null = null;
+  if (req.onText) {
+    const onText = req.onText;
+    const stream = anthropic().messages.stream(body, options);
+    stream.on("text", (_delta, soFar) => {
+      firstTextMs ??= Date.now() - started;
+      onText(soFar);
+    });
+    res = await stream.finalMessage();
+  } else {
+    res = await anthropic().messages.create(body, options);
+  }
   if (process.env.LLM_DEBUG === "1") {
     const u = res.usage;
     console.info(
-      `[llm:${req.label}] ${Date.now() - started} ms · input ${u.input_tokens} · cache read ${u.cache_read_input_tokens ?? 0} · cache write ${u.cache_creation_input_tokens ?? 0} · output ${u.output_tokens}`,
+      `[llm:${req.label}] ${Date.now() - started} ms${firstTextMs === null ? "" : ` (first text ${firstTextMs} ms)`} · input ${u.input_tokens} · cache read ${u.cache_read_input_tokens ?? 0} · cache write ${u.cache_creation_input_tokens ?? 0} · output ${u.output_tokens}`,
     );
   }
   if (res.stop_reason === "refusal") throw new InvalidOutputError("model refused", "");

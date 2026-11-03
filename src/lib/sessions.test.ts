@@ -10,10 +10,12 @@ import {
   LATE_GRACE_SEC,
   loadSession,
   markConnected,
+  NOTES_HOLD_MS,
   settleExpired,
   updateSession,
   type Session,
 } from "./sessions";
+import type { ScoreResponse } from "./types";
 
 /** Control the debrief writer: make the next calls fail, or take a while (on the fake clock). */
 const summarizer = vi.hoisted(() => ({ failures: 0, delaySec: 0 }));
@@ -219,7 +221,7 @@ describe("storage", () => {
     expect((await load(id)).suspicion).toBe(42);
   });
 
-  it("costs three round trips for a judged turn (read, save the line, save the result)", async () => {
+  it("costs four round trips for a judged turn (read, save the line, save the score, save the notes)", async () => {
     const { id } = await newSession();
     const store = sessionStore() as MemoryStore;
     const calls: string[] = [];
@@ -227,7 +229,60 @@ describe("storage", () => {
     store.get = (x) => (calls.push("get"), get(x));
     store.update = (s, v) => (calls.push("update"), update(s, v));
     await addEvent(id, "user", "I led the migration to Kubernetes in 2021.", timing, 0);
-    expect(calls).toEqual(["get", "update", "update"]);
+    expect(calls).toEqual(["get", "update", "update", "update"]);
+  });
+});
+
+describe("streamed score", () => {
+  it("applies the score before the judge's notes, then completes the same event", async () => {
+    const { id } = await newSession();
+    const early: ScoreResponse[] = [];
+    const out = await addEvent(id, "user", "Um, I think we kind of moved stuff.", timing, 0, undefined, (r) => early.push(r));
+
+    expect(early).toHaveLength(1);
+    expect(early[0].event.reasons).toEqual([]);
+    expect(early[0].state.suspicion).toBe(20 + early[0].event.delta);
+    expect(early[0].event.delta).toBeGreaterThan(0);
+
+    const done = out!.response.judged!;
+    expect(done.event.delta).toBe(early[0].event.delta);
+    expect(done.event.reasons.length).toBeGreaterThan(0);
+    expect(done.npcHint).not.toBe("");
+    const s = await load(id);
+    expect(s.events).toHaveLength(1);
+    expect(s.events[0].reasons).toEqual(done.event.reasons);
+    expect(s.suspicion).toBe(early[0].state.suspicion);
+  });
+
+  it("holds the debrief while the notes on the turn that got you caught are still coming", async () => {
+    const { id } = await newSession();
+    await updateSession(id, (s) => void (s.suspicion = 99));
+    const store = sessionStore() as MemoryStore;
+    const update = store.update.bind(store);
+    const saved: Session["job"][] = [];
+    store.update = (s, v) => (saved.push({ ...s.job }), update(s, v));
+
+    const early: ScoreResponse[] = [];
+    const out = await addEvent(id, "user", "Um, I guess, maybe stuff.", timing, 0, undefined, (r) => early.push(r));
+    expect(early[0].state.status).toBe("caught");
+    expect(out?.ended).toBe(true);
+    // Saves: the line, the score (caught, debrief held), the notes (debrief released).
+    expect(saved.map((j) => j.status)).toEqual(["none", "pending", "pending"]);
+    expect(saved[1].lockedUntil).toBe(Date.now() + NOTES_HOLD_MS);
+    expect(saved[2].lockedUntil).toBeNull();
+
+    const s = await load(id);
+    expect(s.events[0].reasons.length).toBeGreaterThan(0);
+    expect(jobDue(s)).toBe(true);
+  });
+
+  it("doesn't start a held debrief until the hold runs out", async () => {
+    const { id } = await newSession();
+    await endSession(id, "left");
+    await updateSession(id, (s) => void (s.job.lockedUntil = Date.now() + NOTES_HOLD_MS));
+    expect(jobDue(await load(id))).toBe(false);
+    advance(NOTES_HOLD_MS / 1000);
+    expect(jobDue(await load(id))).toBe(true);
   });
 });
 

@@ -4,8 +4,8 @@ import { env, llmMock } from "./env";
 import { structuredCall, type PromptBlock, type RawCaller } from "./llm";
 import { mockJudge } from "./mock";
 import { render } from "./prompts";
-import { JudgeRawSchema, JudgeResultSchema, type Profile, type Setup } from "./schemas";
-import { normalizeJudge } from "./scoring";
+import { JudgeRawSchema, JudgeResultSchema, JudgeScoreRawSchema, type JudgeScoreRaw, type Profile, type Setup } from "./schemas";
+import { normalizeJudge, normalizeScore, type JudgeScore } from "./scoring";
 import { describeSignals } from "./timing";
 import type { ClaimState, DeliverySignals, JudgeResult, Turn } from "./types";
 
@@ -99,9 +99,21 @@ export const JUDGE_TIMEOUT_MS = 12_000;
 /**
  * Judge one user turn. Never throws: on repeated failure it returns a neutral, degraded result
  * so the live scene keeps going.
+ *
+ * The reply is streamed, and `onScore` is called once, as soon as the scores have come in (they
+ * are the first fields the model writes), so the meter can move about a second and a half before
+ * the rest of the reply (reasons, claims, next question) is done. The result always carries that
+ * same score: if the reply then breaks and the retry scores differently, the first score stands.
  */
-export async function judgeTurn(input: JudgeInput, call?: RawCaller): Promise<JudgeOutput> {
+export async function judgeTurn(input: JudgeInput, call?: RawCaller, onScore?: (score: JudgeScore) => void): Promise<JudgeOutput> {
   const claims = input.setup.claims;
+  const listenerNames = listenersFor(input.setup).map((l) => l.name);
+  const got: { score: JudgeScore | null } = { score: null };
+  const score = (raw: JudgeScoreRaw) => {
+    if (got.score) return;
+    got.score = normalizeScore(raw, listenerNames);
+    onScore?.(got.score);
+  };
   try {
     const raw =
       llmMock() && !call
@@ -119,11 +131,17 @@ export async function judgeTurn(input: JudgeInput, call?: RawCaller): Promise<Ju
                 effort: "low",
                 timeoutMs: JUDGE_TIMEOUT_MS,
                 maxRetries: 0,
+                onText: (soFar) => {
+                  if (got.score) return;
+                  const s = partialScore(soFar);
+                  if (s) score(s);
+                },
               },
               call,
             )
           ).data;
-    const result = JudgeResultSchema.parse(normalizeJudge(raw, claims, listenersFor(input.setup).map((l) => l.name)));
+    score(raw); // a reply that didn't stream (mock, tests) scores here
+    const result = JudgeResultSchema.parse({ ...normalizeJudge(raw, claims, listenerNames), ...got.score });
     // Contradicted claims never recover.
     result.claims_status = result.claims_status.map((c, i) =>
       input.previousClaims[i]?.status === "contradicted" ? { ...c, status: "contradicted" } : c,
@@ -132,16 +150,55 @@ export async function judgeTurn(input: JudgeInput, call?: RawCaller): Promise<Ju
   } catch (err) {
     console.error("[judge] falling back to neutral result:", err instanceof Error ? err.message : err);
     return {
-      degraded: true,
+      // With a score already in, only the notes are missing: the turn still counts.
+      degraded: !got.score,
       result: {
         delta: 0,
-        reasons: ["The judge missed this turn."],
+        reasons: [got.score ? "The judge's notes for this turn didn't come through." : "The judge missed this turn."],
         categories: { consistency: 5, specificity: 5, plausibility: 5, delivery: 5 },
         claims_status: input.previousClaims.map((c) => ({ claim: c.claim, status: c.status })),
         next_probe: "",
-        listeners: listenersFor(input.setup).map((l) => ({ name: l.name, delta: 0, reason: "" })),
+        listeners: listenerNames.map((name) => ({ name, delta: 0, reason: "" })),
+        ...got.score,
       },
     };
+  }
+}
+
+/**
+ * The scores from a reply that is still streaming in: null until every field before `reasons`
+ * (delta, then listeners) is complete, or if they don't parse.
+ */
+export function partialScore(soFar: string): JudgeScoreRaw | null {
+  const fields = completedFields(soFar);
+  if (!fields || !("listeners" in fields)) return null;
+  const parsed = JudgeScoreRawSchema.safeParse(fields);
+  return parsed.success ? parsed.data : null;
+}
+
+/** A JSON object cut off part way through: its top-level fields up to the last one that's complete. */
+function completedFields(text: string): Record<string, unknown> | null {
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  let lastComma = -1;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === "\\") escaped = true;
+      else if (ch === '"') inString = false;
+    } else if (ch === '"') inString = true;
+    else if (ch === "{" || ch === "[") depth++;
+    else if (ch === "}" || ch === "]") depth--;
+    else if (ch === "," && depth === 1) lastComma = i;
+  }
+  if (lastComma < 0) return null;
+  try {
+    const value: unknown = JSON.parse(`${text.slice(0, lastComma)}}`);
+    return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
+  } catch {
+    return null;
   }
 }
 

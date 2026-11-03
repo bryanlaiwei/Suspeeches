@@ -11,6 +11,7 @@ import {
   cutShort,
   moodFor,
   silencePenalty,
+  type JudgeScore,
   SILENCE_FIRST_SEC,
   SILENCE_REPEAT_SEC,
   START_SUSPICION,
@@ -30,6 +31,7 @@ import type {
   EventResponse,
   GameVersions,
   PublicSessionState,
+  ScoreResponse,
   SessionStatus,
   SilenceResponse,
   SuspicionEvent,
@@ -215,7 +217,11 @@ export async function markConnected(id: string): Promise<PublicSessionState | nu
 
 type Judged = { judged: EventResponse["judged"]; npcMood: string | null; ended: boolean };
 
-/** Append a transcript line. User lines are judged (one at a time per session). */
+/**
+ * Append a transcript line. User lines are judged (one at a time per session). The judge's score
+ * is applied as soon as it streams in, before the rest of its reply, and passed to `onScore` so
+ * the browser can move the meter right away; the response then completes the same event.
+ */
 export async function addEvent(
   id: string,
   role: "user" | "agent",
@@ -223,6 +229,7 @@ export async function addEvent(
   timing: Timing,
   seq: number,
   speaker?: string,
+  onScore?: (score: ScoreResponse) => void,
 ): Promise<Outcome<EventResponse> | null> {
   const added = await updateSession(id, (s, now) => {
     if (s.status !== "live") return unchanged({ turn: null, ended: false });
@@ -249,7 +256,7 @@ export async function addEvent(
 
   // Nothing queued ahead of this turn: the state we just saved is current, so the judge can start from it.
   const known = queues.has(id) ? undefined : { session: added.s, version: added.version };
-  const judged = await enqueue(id, () => judgeAndApply(id, seq, known));
+  const judged = await enqueue(id, () => judgeAndApply(id, seq, known, onScore));
   if (!judged) return { response: { state: toPublic(added.s), judged: null }, ended: false };
   return {
     response: { state: toPublic(judged.s), judged: judged.value.judged, npcMood: judged.value.npcMood },
@@ -257,8 +264,22 @@ export async function addEvent(
   };
 }
 
-/** Judge one user line (found by seq, since its index can shift) and apply the result to the latest state. */
-async function judgeAndApply(id: string, seq: number, known?: StoredSession): Promise<{ s: Session; value: Judged } | null> {
+/**
+ * A turn that ends the scene as soon as its score is in still has the judge's notes on the way, and
+ * the debrief should read them: the job waits this long for them (in case this worker dies first).
+ */
+export const NOTES_HOLD_MS = 30_000;
+
+/**
+ * Judge one user line (found by seq, since its index can shift) and apply the result to the latest
+ * state in two steps: the score as soon as it streams in, then the notes once the reply is done.
+ */
+async function judgeAndApply(
+  id: string,
+  seq: number,
+  known?: StoredSession,
+  onScore?: (score: ScoreResponse) => void,
+): Promise<{ s: Session; value: Judged } | null> {
   const none: Judged = { judged: null, npcMood: null, ended: false };
   const rec = known ?? (await sessionStore().get(id));
   if (!rec) return null;
@@ -266,35 +287,79 @@ async function judgeAndApply(id: string, seq: number, known?: StoredSession): Pr
   const turn = before.transcript.find((t) => t.seq === seq);
   if (before.status !== "live" || !turn?.signals) return { s: before, value: none };
 
-  const { result, degraded } = await judgeTurn({
-    profile: before.profile,
-    setup: before.setup,
-    transcript: before.transcript,
-    turn: { ...turn, signals: turn.signals },
-    previousClaims: before.claims,
-    userTurnNumber: before.transcript.filter((t) => t.role === "user" && t.index <= turn.index).length,
-  });
+  const scored: { update: ReturnType<typeof updateSession<Judged>> | null } = { update: null };
+  const { result, degraded } = await judgeTurn(
+    {
+      profile: before.profile,
+      setup: before.setup,
+      transcript: before.transcript,
+      turn: { ...turn, signals: turn.signals },
+      previousClaims: before.claims,
+      userTurnNumber: before.transcript.filter((t) => t.role === "user" && t.index <= turn.index).length,
+    },
+    undefined,
+    (score) => {
+      const update = updateSession<Judged>(
+        id,
+        (s, now) => {
+          // The scene may have ended while the judge was thinking.
+          const at = s.transcript.find((t) => t.seq === seq);
+          if (s.status !== "live" || !at) return unchanged(none);
+          const event = applyScore(s, at, score);
+          if (s.status !== "live") s.job.lockedUntil = now + NOTES_HOLD_MS;
+          return { judged: { event, nextProbe: "", npcHint: "" }, npcMood: npcNote(s), ended: s.status !== "live" };
+        },
+        rec,
+      ).then((r) => {
+        if (r?.value.judged) onScore?.({ state: toPublic(r.s), event: r.value.judged.event, npcMood: r.value.npcMood });
+        return r;
+      });
+      update.catch(() => undefined); // awaited below; don't let it count as unhandled meanwhile
+      scored.update = update;
+    },
+  );
+  const early = scored.update && (await scored.update);
 
   return updateSession<Judged>(
     id,
     (s) => {
-      // The scene may have ended while the judge was thinking.
       const at = s.transcript.find((t) => t.seq === seq);
-      if (s.status !== "live" || !at) return unchanged(none);
-      const event = applyJudgement(s, at, result, degraded);
+      if (!at) return unchanged(none);
+      const event = early?.value.judged && s.events.find((e) => e.kind === "turn" && e.turnIndex === at.index);
+      if (event) {
+        // The score is already applied (and may have ended the scene): add the notes.
+        completeJudgement(s, event, result, degraded);
+        if (s.job.status === "pending") s.job.lockedUntil = null;
+        return {
+          judged: { event, nextProbe: result.next_probe, npcHint: npcHintFor(result.next_probe) },
+          npcMood: null,
+          ended: early.value.ended,
+        };
+      }
+      if (s.status !== "live") return unchanged(none);
+      const fresh = applyScore(s, at, result);
+      completeJudgement(s, fresh, result, degraded);
       return {
-        judged: { event, nextProbe: result.next_probe, npcHint: npcHintFor(result.next_probe) },
+        judged: { event: fresh, nextProbe: result.next_probe, npcHint: npcHintFor(result.next_probe) },
         npcMood: npcNote(s),
         ended: s.status !== "live",
       };
     },
-    rec,
+    early ? { session: early.s, version: early.version } : rec,
   );
 }
 
-function applyJudgement(s: Session, turn: Turn, result: JudgeResult, degraded: boolean): SuspicionEvent {
+/** The judge's notes for a turn whose score is applied: claim statuses, reasons and categories. */
+function completeJudgement(s: Session, event: SuspicionEvent, result: JudgeResult, degraded: boolean) {
   // Contradicted claims never recover, even if this turn's judge started before an earlier one finished.
   s.claims = result.claims_status.map((c, i) => (s.claims[i]?.status === "contradicted" ? { ...c, status: "contradicted" } : c));
+  event.reasons = result.reasons;
+  event.categories = result.categories;
+  event.degraded = degraded;
+}
+
+/** Apply a judged turn's score: suspicion (each character's in a group), the event, and caught. */
+function applyScore(s: Session, turn: Turn, result: JudgeScore): SuspicionEvent {
   let delta: number;
   let notes: string[] = [];
   let perCharacter: CharacterReaction[] | undefined;
@@ -318,10 +383,10 @@ function applyJudgement(s: Session, turn: Turn, result: JudgeResult, degraded: b
     adjustments: notes,
     perCharacter,
     suspicion: s.suspicion,
-    reasons: result.reasons,
-    categories: result.categories,
+    // Filled in by completeJudgement once the rest of the judge's reply is in.
+    reasons: [],
+    categories: { consistency: 5, specificity: 5, plausibility: 5, delivery: 5 },
     quote: turn.text.length > 160 ? `${turn.text.slice(0, 157)}...` : turn.text,
-    degraded,
   };
   s.events.push(event);
   if (s.suspicion >= CAUGHT_AT) caught(s, turn.tSec);

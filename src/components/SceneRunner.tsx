@@ -9,7 +9,7 @@ import type { SetupDraft } from "@/lib/client/storage";
 import { castFor, presetFor } from "@/lib/presets";
 import { SetupSchema, type Profile, type Setup } from "@/lib/schemas";
 import { SILENCE_FIRST_SEC, SPIKE_DELTA, START_SUSPICION } from "@/lib/scoring";
-import type { EndReason, PublicSessionState, SuspicionEvent, VoiceConnection } from "@/lib/types";
+import type { EndReason, PublicSessionState, ScoreResponse, SuspicionEvent, VoiceConnection } from "@/lib/types";
 import { CallStage, EndOverlay, MockInput } from "./CallScreen";
 import { Briefing } from "./scene/Briefing";
 import { useBustSequence } from "./scene/useBustSequence";
@@ -186,24 +186,38 @@ export function SceneRunner({ profile, draft }: { profile: Profile; draft: Setup
     agentStoppedAt.current = null;
 
     const id = pushLine({ role: "user", text, tSec, delta: null });
+    const showScore = (event: SuspicionEvent) => {
+      const breakdown = event.perCharacter?.map((p) => ({ name: p.name, delta: p.delta }));
+      setLines((ls) => ls.map((l) => (l.id === id ? { ...l, delta: event.delta, turnIndex: event.turnIndex, breakdown } : l)));
+    };
+    /** The score arrives ahead of the judge's notes: move the meter (and the NPC's mood) right away. */
+    let scored = false;
+    const onScore = (res: ScoreResponse) => {
+      scored = true;
+      if (endingRef.current) return;
+      setState(res.state);
+      showScore(res.event);
+      react(res.event);
+      if (res.state.status === "caught") return bust(res.npcMood, res.state.caughtBy);
+      tellNpc(res.npcMood);
+    };
     // Fire and forget: the NPC keeps talking while the judge works.
     void api
-      .event(sessionId.current, seq.current++, "user", text, { responseLatencyMs, speechMs })
+      .event(sessionId.current, seq.current++, "user", text, { responseLatencyMs, speechMs }, undefined, onScore)
       .then((res) => {
         setState(res.state);
         const judged = res.judged;
         if (!judged) return;
-        const breakdown = judged.event.perCharacter?.map((p) => ({ name: p.name, delta: p.delta }));
-        setLines((ls) =>
-          ls.map((l) => (l.id === id ? { ...l, delta: judged.event.delta, turnIndex: judged.event.turnIndex, breakdown } : l)),
-        );
-        react(judged.event);
-        if (res.state.status === "caught") return bust(res.npcMood, res.state.caughtBy);
-        tellNpc(res.npcMood);
+        showScore(judged.event);
+        if (!scored) {
+          react(judged.event);
+          if (res.state.status === "caught") return bust(res.npcMood, res.state.caughtBy);
+          tellNpc(res.npcMood);
+        } else if (res.state.status === "caught") return;
         tellNpc(judged.npcHint);
       })
       .catch((e) => {
-        setLines((ls) => ls.map((l) => (l.id === id ? { ...l, delta: undefined } : l)));
+        if (!scored) setLines((ls) => ls.map((l) => (l.id === id ? { ...l, delta: undefined } : l)));
         console.error("judge request failed", e);
       });
 

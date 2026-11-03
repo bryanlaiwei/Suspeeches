@@ -1,5 +1,7 @@
-import type { JudgeRaw } from "./schemas";
+import type { JudgeRaw, JudgeScoreRaw } from "./schemas";
 import type { EndReason, JudgeResult } from "./types";
+
+export type JudgeScore = Pick<JudgeResult, "delta" | "listeners">;
 
 export const START_SUSPICION = 20;
 export const CAUGHT_AT = 100;
@@ -84,11 +86,10 @@ export function appliedDelta(judgeDelta: number, gapScore: number, h: ScoreHisto
  * `listenerNames` (group scenes) are the characters who must each get a delta, in stage order.
  */
 export function normalizeJudge(raw: JudgeRaw, claims: string[], listenerNames: string[] = []): JudgeResult {
-  const byListener = new Map(raw.listeners.map((l) => [l.name.trim().toLowerCase(), l]));
   const c = (n: number) => clamp(Math.round(Number.isFinite(n) ? n : 5), 0, 10);
   const byClaim = new Map(raw.claims_status.map((s) => [s.claim.trim().toLowerCase(), s.status]));
   return {
-    delta: clampDelta(raw.delta),
+    ...normalizeScore(raw, listenerNames),
     reasons: (raw.reasons.length ? raw.reasons : ["No specific tell this turn."])
       .map((r) => r.trim())
       .filter(Boolean)
@@ -105,6 +106,14 @@ export function normalizeJudge(raw: JudgeRaw, claims: string[], listenerNames: s
       status: byClaim.get(claim.trim().toLowerCase()) ?? raw.claims_status[i]?.status ?? "untested",
     })),
     next_probe: raw.next_probe.trim(),
+  };
+}
+
+/** Just the scores: the clamped overall delta and, in group scenes, one delta per listener in stage order. */
+export function normalizeScore(raw: JudgeScoreRaw, listenerNames: string[] = []): JudgeScore {
+  const byListener = new Map(raw.listeners.map((l) => [l.name.trim().toLowerCase(), l]));
+  return {
+    delta: clampDelta(raw.delta),
     listeners: listenerNames.map((name) => {
       const l = byListener.get(name.toLowerCase());
       return { name, delta: clampDelta(l ? l.delta : raw.delta), reason: l?.reason.trim() || "" };

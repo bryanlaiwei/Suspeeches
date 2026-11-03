@@ -23,7 +23,8 @@ export function jobDue(s: Session, now = Date.now()): boolean {
   if (s.status === "live") return false;
   switch (s.job.status) {
     case "pending":
-      return true;
+      // Held while the judge's notes on the turn that ended the scene are still coming (sessions.ts).
+      return (s.job.lockedUntil ?? 0) <= now;
     case "failed":
       return s.job.attempts < MAX_AUTO_ATTEMPTS;
     case "running":
