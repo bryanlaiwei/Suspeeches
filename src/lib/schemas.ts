@@ -87,13 +87,9 @@ export type JudgeResult = z.infer<typeof JudgeResultSchema>;
 /**
  * What we ask the model for. Number ranges are left open here because the server clamps
  * them; anything structurally wrong (missing keys, bad enums) still fails and triggers a retry.
- *
- * The model writes the fields in this order, and the reply is streamed: the scores (delta and
- * each listener's delta) come first so the meter can move before the rest is written (judge.ts).
  */
 export const JudgeRawSchema = z.object({
   delta: z.number(),
-  listeners: z.array(z.object({ name: z.string(), delta: z.number(), reason: z.string() })),
   reasons: z.array(z.string()),
   categories: z.object({
     consistency: z.number(),
@@ -103,12 +99,9 @@ export const JudgeRawSchema = z.object({
   }),
   claims_status: z.array(z.object({ claim: z.string(), status: ClaimStatusSchema })),
   next_probe: z.string(),
+  listeners: z.array(z.object({ name: z.string(), delta: z.number(), reason: z.string() })),
 });
 export type JudgeRaw = z.infer<typeof JudgeRawSchema>;
-
-/** The part of the judge's reply that moves the meter, available as soon as it has streamed in. */
-export const JudgeScoreRawSchema = JudgeRawSchema.pick({ delta: true, listeners: true });
-export type JudgeScoreRaw = z.infer<typeof JudgeScoreRawSchema>;
 
 /* ---------- gap estimator + suggester ---------- */
 

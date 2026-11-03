@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from "vitest";
 import fixture from "./__fixtures__/transcript.json";
-import { judgeTurn, judgeUserBlocks, JUDGE_TIMEOUT_MS, partialScore, type JudgeInput } from "./judge";
+import { judgeTurn, judgeUserBlocks, JUDGE_TIMEOUT_MS, type JudgeInput } from "./judge";
 import { structuredCall, toMessageParams, type RawCaller } from "./llm";
 import { JudgeRawSchema, JudgeResultSchema, ProfileSchema, SetupSchema } from "./schemas";
 import { appliedDelta, applyDelta, START_SUSPICION } from "./scoring";
@@ -79,66 +79,6 @@ describe("judgeTurn", () => {
     const input = { ...inputFor("Trust me."), previousClaims: setup.claims.map((claim, i) => ({ claim, status: i === 0 ? "contradicted" : "shaky" }) as ClaimState) };
     const out = await judgeTurn(input, recovering);
     expect(out.result.claims_status.map((c) => c.status)).toEqual(["contradicted", "held", "held"]);
-  });
-});
-
-describe("streamed score", () => {
-  /** A reply in the order the model writes it: scores first. */
-  const reply = (delta: number) =>
-    JSON.stringify({
-      delta,
-      listeners: [],
-      reasons: ["You named the exact version."],
-      categories: { consistency: 8, specificity: 8, plausibility: 7, delivery: 8 },
-      claims_status: setup.claims.map((claim) => ({ claim, status: "held" })),
-      next_probe: "Ask them about the cutover.",
-    });
-  const upToReasons = (text: string) => text.slice(0, text.indexOf('"reasons"'));
-
-  it("reads the score once delta and listeners are complete, and not before", () => {
-    const text = JSON.stringify({
-      delta: 12,
-      listeners: [{ name: "Maya", delta: 20, reason: 'Said "k8s, v2]" {wrong}, \\ twice' }],
-      reasons: ["x"],
-    });
-    expect(partialScore('{"delta": 1')).toBeNull();
-    expect(partialScore(text.slice(0, text.indexOf("k8s")))).toBeNull(); // inside a listener's reason
-    expect(partialScore(text.slice(0, text.indexOf('"reasons"') - 1))).toBeNull(); // listeners not closed off yet
-    expect(partialScore(upToReasons(text))).toEqual({ delta: 12, listeners: [{ name: "Maya", delta: 20, reason: 'Said "k8s, v2]" {wrong}, \\ twice' }] });
-  });
-
-  it("calls onScore once, mid-stream, and keeps that score when a retry scores differently", async () => {
-    let calls = 0;
-    const flaky: RawCaller = async (req) => {
-      if (++calls === 1) {
-        req.onText?.(upToReasons(reply(12)));
-        return `${upToReasons(reply(12))}"reasons": [`; // cut off
-      }
-      req.onText?.(reply(-5));
-      return reply(-5);
-    };
-    const scores: number[] = [];
-    const out = await judgeTurn(inputFor("Go 1.21, on RDS."), flaky, (s) => scores.push(s.delta));
-    expect(calls).toBe(2);
-    expect(scores).toEqual([12]);
-    expect(out.degraded).toBe(false);
-    expect(out.result.delta).toBe(12);
-    expect(out.result.reasons).toEqual(["You named the exact version."]);
-  });
-
-  it("keeps a streamed score when the rest of the reply never comes", async () => {
-    const broken: RawCaller = async (req) => (req.onText?.(upToReasons(reply(9))), "{");
-    const out = await judgeTurn(inputFor("Go 1.21, on RDS."), broken);
-    expect(out.degraded).toBe(false);
-    expect(out.result.delta).toBe(9);
-    expect(out.result.reasons[0]).toMatch(/notes/);
-    JudgeResultSchema.parse(out.result);
-  });
-
-  it("scores a reply that didn't stream once it's complete", async () => {
-    const scores: number[] = [];
-    await judgeTurn(inputFor("Go 1.21."), async () => reply(-3), (s) => scores.push(s.delta));
-    expect(scores).toEqual([-3]);
   });
 });
 
