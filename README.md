@@ -4,7 +4,7 @@
 
 # [Suspeeches](https://suspeeches.vercel.app)
 
-Fake it till you make it, out loud! Join voice calls where AI characters can smell a larp from a mile away. A sus-meter on their head shows how suspicious you are, and trust me, you don't want it to reach 100%.
+Fake it till you make it, out loud! Join conversations where AI characters can smell a larp from a mile away. A sus-meter on their head shows how suspicious you are, and trust me, you don't want it to reach 100%.
 
 <p align="center">
   <img src="https://img.shields.io/badge/TypeScript-3178C6?style=flat&logo=typescript&logoColor=white" alt="TypeScript" />
