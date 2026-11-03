@@ -83,7 +83,7 @@ The call ends in one of two ways: anyone hits 100 (you're caught) or the clock r
 | [`src/components`](src/components) | Call screen, scene runner, faces, timeline, transcript and the theme kit |
 | [`src/lib`](src/lib) | Judge, scoring, larp gap, summarizer, sessions and ElevenLabs |
 | [`prompts`](prompts) | Prompts for the judge, gap, summarizer and every character, compiled into `src/lib/prompts.generated.ts` |
-| [`scripts`](scripts) | Creates and updates the ElevenLabs agents |
+| [`scripts`](scripts) | Creates and updates the ElevenLabs agents, and makes the call-screen art |
 | [`supabase`](supabase) | Database schema and row-level-security policies for profiles and games |
 
 ## Run it locally
@@ -109,6 +109,7 @@ Every scenario is one entry in [`src/lib/scenarios.ts`](src/lib/scenarios.ts): i
 1. Add the entry to `SCENARIOS`.
 2. Write `prompts/npc/<id>.md`: the character sheet, with `voice_id`, `llm` and `first_message` (plus `voices` for a multi-voice panel) in its frontmatter. Typecheck fails until it exists.
 3. Run `npm run agents:create <id>` and commit `src/lib/agents.json`.
+4. New face: add its art to `public/avatars/<name>/`, register it in `ART` in `src/components/Avatar.tsx`, then run `npx tsx scripts/gen-call-avatars.ts`.
 
 ### Prompts
 
