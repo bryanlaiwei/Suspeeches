@@ -87,9 +87,11 @@ export type JudgeResult = z.infer<typeof JudgeResultSchema>;
 /**
  * What we ask the model for. Number ranges are left open here because the server clamps
  * them; anything structurally wrong (missing keys, bad enums) still fails and triggers a retry.
+ *
+ * The model writes the fields in this order, so the scores come last in every scene: it reasons
+ * about the turn (and, in a group, about each listener) before it commits to a number.
  */
 export const JudgeRawSchema = z.object({
-  delta: z.number(),
   reasons: z.array(z.string()),
   categories: z.object({
     consistency: z.number(),
@@ -99,7 +101,8 @@ export const JudgeRawSchema = z.object({
   }),
   claims_status: z.array(z.object({ claim: z.string(), status: ClaimStatusSchema })),
   next_probe: z.string(),
-  listeners: z.array(z.object({ name: z.string(), delta: z.number(), reason: z.string() })),
+  listeners: z.array(z.object({ name: z.string(), reason: z.string(), delta: z.number() })),
+  delta: z.number(),
 });
 export type JudgeRaw = z.infer<typeof JudgeRawSchema>;
 
